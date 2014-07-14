@@ -32,9 +32,11 @@
      index-projection      = projection-subject <'[*]'> projection-predicate
      flatten-projection    = projection-subject <'[]'> projection-predicate
      filter-projection     = projection-subject <'[?'> condition <']'> projection-predicate
-     condition             = stat binop stat | unop stat
+     <condition>           = unary-condition | binary-condition
+     binary-condition      = stat binop stat
+     unary-condition       = negation | stat
+     negation              = <'!'> stat
      binop                 = '<' | '<=' | '>' | '>=' | '==' | '!=' | '&&' | '||'
-     unop                  = <'!'>
      function-expr         = function-name <'('> function-args <')'>
      function-name         = unquoted-string
      function-args         = [explist]
