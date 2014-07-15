@@ -49,8 +49,7 @@
   (let [lhs (visit (get-in ast [1 1]) data)]
     (if (guard lhs)
       (filter
-        (fn [item]
-          (not (nil? item)))
+        (fn [item] (not (nil? item)))
         (map mapfn lhs)))))
 
 (defmethod visit :value-projection [ast data]
@@ -58,16 +57,25 @@
   (let [rexp (get-in ast [2 1])]
     (project ast data
       (fn [lhs] (map? lhs))
-      (fn [item]
-        (visit rexp (get item 1))))))
+      (fn [item] (visit rexp (get item 1))))))
 
 (defmethod visit :index-projection [ast data]
   "Applies an index-projection to vectors or lists"
   (let [rexp (get-in ast [2 1])]
     (project ast data
       (fn [lhs] (or (list? lhs) (vector? lhs)))
+      (fn [item] (visit rexp item)))))
+
+(defmethod visit :filter-projection [ast data]
+  "Applies a filter-projection to vectors or lists"
+  (println ast)
+  (let [condition (get ast 2)
+        rexp (get-in ast [3 1])]
+    (project ast data
+      (fn [lhs] (or (list? lhs) (vector? lhs)))
       (fn [item]
-        (visit rexp item)))))
+        (if (visit condition item)
+          (visit rexp item))))))
 
 (defn interpret [ast data]
   "Interprets the given AST with the provided data"
