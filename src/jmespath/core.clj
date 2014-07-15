@@ -1,6 +1,7 @@
 (ns jmespath.core
-  "Parses JMESPath ressions"
+  "Parses JMESPath expressions"
   {:author "Michael Dowling"}
+  (:use jmespath.tree)
   (:require [instaparse.core :as insta]))
 
 (def ^:private parser
@@ -57,3 +58,7 @@
   (->> (parser exp) (insta/transform {
     :number (comp read-string str)
     :digit str})))
+
+(defn search [exp data]
+  "Searches the provides data structures using a JMESPath expression"
+  (interpret (parse exp) data))
