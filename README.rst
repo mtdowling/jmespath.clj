@@ -11,6 +11,8 @@ Installation
 
 Add the following to your project's ``project.clj`` file.
 
+.. code-block:: clojure
+
     [jmespath "0.1.0"]
 
 Usage
