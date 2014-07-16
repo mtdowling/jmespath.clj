@@ -68,7 +68,6 @@
 
 (defmethod visit :filter-projection [ast data]
   "Applies a filter-projection to vectors or lists"
-  (println ast)
   (let [condition (get ast 2)
         rexp (get-in ast [3 1])]
     (project ast data
@@ -76,6 +75,21 @@
       (fn [item]
         (if (visit condition item)
           (visit rexp item))))))
+
+(defmethod visit :multi-select-hash [ast data]
+  (apply
+    array-map
+    (flatten
+      (map
+        (fn [node]
+          [(get-in node [1 1 1] node)
+           (visit (get-in node [2 1]) data)])
+        (rest ast)))))
+
+(defmethod visit :multi-select-list [ast data]
+  (map
+    (fn [node] (visit node data))
+    (rest ast)))
 
 (defn interpret [ast data]
   "Interprets the given AST with the provided data"
