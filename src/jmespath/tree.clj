@@ -1,5 +1,6 @@
 (ns jmespath.tree
-  "Traverses and interprets JMESPath ASTs")
+  "Traverses and interprets JMESPath ASTs"
+  (:use jmespath.functions))
 
 (defmulti visit
   "Double dispatch method used to visit nodes by name"
@@ -90,6 +91,13 @@
   (map
     (fn [node] (visit node data))
     (rest ast)))
+
+(defmethod visit :function-expr [ast data]
+  (invoke
+    (get-in ast [1 1])
+    (map (fn [node]
+      (visit node data))
+      (rest (nth ast 2)))))
 
 (defn interpret [ast data]
   "Interprets the given AST with the provided data"
