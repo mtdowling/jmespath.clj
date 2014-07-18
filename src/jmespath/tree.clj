@@ -2,10 +2,7 @@
   "Traverses and interprets JMESPath ASTs"
   (:use jmespath.functions))
 
-(defmulti visit
-  "Double dispatch method used to visit nodes by name"
-  (fn [ast _]
-    (get ast 0)))
+(defmulti visit (fn [ast _] (first ast)))
 
 (defmethod visit :identifier [ast data]
   (if (map? data) (get data (get ast 1))))

@@ -1,33 +1,27 @@
 (ns jmespath.functions
-  "Executes JMESPath functions")
+  "Executes JMESPath functions"
+  (:use jmespath.args)
+  (:require [instaparse.core :as insta]))
 
-(defmulti invoke (fn [name _] name))
+(defmulti invoke (fn [fn-name _] fn-name))
 
-(defn- gettype [subject]
-  (cond
-    (map? subject)              "object"
-    (list? subject)             "array"
-    (vector? subject)           "array"
-    (string? subject)           "string"
-    (instance? Boolean subject) "boolean"
-    (nil? subject)              "null"))
+(defmethod invoke "type" [fn-name args]
+  (let [args (validate-fn
+    {:name fn-name
+     :positional [(arg-type "any")]
+     :args (vec args)})]
+    (gettype (nth args 0))))
 
-(defn- invalid-type [name pos expected actual]
-  "Throws an exception when an invalid type is supplied for an argument"
-  (throw
-    (Exception.
-     (str "Invalid type supplied for argument " pos
-          " of " name ". Expected " expected "."))))
+(defmethod invoke "not_null" [fn-name args]
+  (let [args (validate-fn
+    {:name "not_null"
+     :variadic (arg-type "any")
+     :args (vec args)})]
+    (first (filter #(not= % nil) args))))
 
-(defmethod invoke "type" [name args]
-  (gettype (nth args 0)))
-
-(defmethod invoke "not_null" [name args]
-  (not (nil? (nth args 0))))
-
-(defmethod invoke "length" [name args]
-  (let [subject (nth args 0)]
-    (try
-      (count (nth args 0))
-      (catch Exception e
-        (invalid-type name 0 "array|string|object" subject)))))
+(defmethod invoke "length" [fn-name args]
+  (let [args (validate-fn
+    {:name fn-name
+     :positional [(arg-alts "string" "array" "object")]
+     :args (vec args)})]
+    (count (nth args 0))))
