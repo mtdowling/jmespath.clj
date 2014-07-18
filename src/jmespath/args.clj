@@ -44,18 +44,18 @@
 (defn- invalid-variadic! [fn-name pos expected actual]
   (invalid-type! fn-name pos expected actual "variadic argument"))
 
+(defn- get-positioned-parameter [fn-name positional variadic pos args]
+  (let [p (or (get positional pos) variadic)]
+    (or p (invalid-arity! fn-name args (count positional) variadic))))
+
 (defn- validate-arg [fn-name positional variadic args pos]
   "Validates a single argument of a function"
-  (let [p (get positional pos),
+  (let [p (get-positioned-parameter fn-name positional variadic pos args),
         a (get args pos)]
     (cond
-      (and (not p) (not variadic))
-        (invalid-arity! fn-name args (count positional) variadic)
-      (and (not p) (variadic a)) a
-      (not p) (invalid-variadic! fn-name pos variadic a)
       (p a) a
-      (contains? args pos) (invalid-positional! fn-name pos p a)
-      :else (invalid-arity! fn-name args (count positional) variadic))))
+      (contains? positional pos) (invalid-positional! fn-name pos p a)
+      :else (invalid-variadic! fn-name pos p a))))
 
 (defn arg-type [expected]
   "Returns a function that validates a single type"
