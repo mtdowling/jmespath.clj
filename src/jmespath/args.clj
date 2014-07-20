@@ -36,16 +36,16 @@
 
 (defn- get-positioned-parameter [fname positional variadic pos args]
   "Gets a positional parameter from a list of parameters. If a postional
-   parameter does not exist at the given pos, then a variadic parameter
-   is returned if available, or an exeception is thrown if it is not
-   available."
-  (let [p (or (get positional pos) variadic)]
-    (or p (invalid-arity fname args (count positional) variadic))))
+  parameter does not exist at the given pos, then a variadic parameter
+  is returned if available, or an exeception is thrown if it is not
+  available."
+  (if-let [p (or (get positional pos) variadic)]
+    p (invalid-arity fname args (count positional) variadic)))
 
 (defn- validate-arg [fname positional variadic args pos]
-  "Validates a single argument of a function by ensuring the correct function
-   arity and that each argument type matches the expected type."
-  (let [p (get-positioned-parameter fname positional variadic pos args),
+  "Validates a single argument of a function by ensuring the correct
+  function arity and that each argument type matches the expected type."
+  (let [p (get-positioned-parameter fname positional variadic pos args)
         a (get args pos)]
     (if (p a) a (invalid-type fname pos p a))))
 
@@ -63,7 +63,7 @@
 
 (defn arg-seq [& types]
   "Returns a function that ensures an argument collection uses a
-   consistent type"
+  consistent type"
   (with-meta
     (fn [arg]
       (and (= (gettype arg) "array")
@@ -75,11 +75,9 @@
 
 (defn validate-fn
   "Validates the arguments of a function"
-  [{fname :name
-    positional :positional
-    variadic :variadic
-    args :args}]
-  (let [positional (or positional [])]
-    (map
-      #(validate-arg fname positional variadic args %)
-      (range (max (count args) (count positional))))))
+  [{:keys [name positional variadic args]
+          :or {positional [], args []}}]
+  (let [iterations (max (count args)
+                        (count positional))]
+    (for [pos (range iterations)]
+      (validate-arg name positional variadic args pos))))

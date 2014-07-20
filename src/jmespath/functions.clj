@@ -3,25 +3,25 @@
   (:use jmespath.args)
   (:require [instaparse.core :as insta]))
 
-(defmulti invoke (fn [fn-name _] fn-name))
+(defmulti invoke (fn [fname _] fname))
 
-(defmethod invoke "type" [fn-name args]
+(defmethod invoke "type" [fname args]
   (let [args (validate-fn
-    {:name fn-name
+    {:name fname
      :positional [(arg-type "any")]
      :args (vec args)})]
     (gettype (nth args 0))))
 
-(defmethod invoke "not_null" [fn-name args]
+(defmethod invoke "not_null" [fname args]
   (let [args (validate-fn
     {:name "not_null"
      :variadic (arg-type "any")
      :args (vec args)})]
     (first (filter #(not= % nil) args))))
 
-(defmethod invoke "length" [fn-name args]
+(defmethod invoke "length" [fname args]
   (let [args (validate-fn
-    {:name fn-name
+    {:name fname
      :positional [(arg-alts "string" "array" "object")]
      :args (vec args)})]
     (count (nth args 0))))
