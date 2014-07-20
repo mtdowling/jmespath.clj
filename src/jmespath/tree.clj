@@ -5,22 +5,24 @@
 (defmulti visit (fn [ast _] (first ast)))
 
 (defmethod visit :identifier [ast data]
-  (if (map? data) (get data (get ast 1))))
+  (when (map? data) (get data (get ast 1))))
 
 (defmethod visit :index [ast data]
-  (if (or (list? data) (vector? data))
+  (when (or (list? data) (vector? data))
     (get data (get ast 1))))
 
 (defmethod visit :sub-expr [ast data]
-  (visit (get ast 2) (visit (get ast 1) data)))
+  (visit (get ast 2)
+         (visit (get ast 1) data)))
 
 (defmethod visit :pipe-expr [ast data]
-  (visit (get ast 2) (visit (get ast 1) data)))
+  (visit (get ast 2)
+         (visit (get ast 1) data)))
 
-(defmethod visit :literal [ast data]
-  (get ast 1))
+(defmethod visit :literal [ast data] (get ast 1))
 
 (defmethod visit :current-node [ast data] data)
+
 (defmethod visit :identity [ast data] data)
 
 (defmethod visit :unary-condition [ast data]
@@ -38,6 +40,7 @@
       (= type "!=") (not= (visit lhs data) (visit rhs data))
       (= type "&&") (and (visit lhs data) (visit rhs data))
       (= type "||") (or (visit lhs data) (visit rhs data))
+      ; Other symbols can be used literally (e.g., <, >, <=, >=)
       :default ((resolve (symbol type))
         (visit lhs data) (visit rhs data)))))
 
@@ -45,7 +48,7 @@
   "Applies a projection node based on a guard and map function"
   [ast data guard mapfn]
   (let [lhs (visit (get-in ast [1 1]) data)]
-    (if (guard lhs)
+    (when (guard lhs)
       (filter
         (fn [item] (not (nil? item)))
         (map mapfn lhs)))))
@@ -71,7 +74,7 @@
     (project ast data
       (fn [lhs] (or (list? lhs) (vector? lhs)))
       (fn [item]
-        (if (visit condition item)
+        (when (visit condition item)
           (visit rexp item))))))
 
 (defmethod visit :multi-select-hash [ast data]
