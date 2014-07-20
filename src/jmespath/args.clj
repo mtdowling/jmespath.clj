@@ -76,8 +76,12 @@
 (defn validate-fn
   "Validates the arguments of a function"
   [{:keys [name positional variadic args]
-          :or {positional [], args []}}]
-  (let [iterations (max (count args)
-                        (count positional))]
-    (for [pos (range iterations)]
-      (validate-arg name positional variadic args pos))))
+    :or {positional [], args []}}]
+  (let [arg-count (count args), pos-count (count positional)]
+    (if (< arg-count pos-count)
+      ; The minimum number of arguments were not supplied
+      (invalid-arity name args pos-count variadic)
+      ; Validate over each argument
+      (let [iterations (max arg-count pos-count)]
+        (for [pos (range iterations)]
+          (validate-arg name positional variadic args pos))))))
