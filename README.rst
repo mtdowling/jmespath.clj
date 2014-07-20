@@ -23,7 +23,7 @@ Usage
     (ns hello-world
       (:require jmespath.core :as jmespath))
 
-    (jmespath.parse "foo.bar.*.baz")
+    (jmespath.search "foo.bar" {"foo" {"bar" "baz"}})
 
 The official `JMESPath documentation <http://jmespath.readthedocs.org/en/latest/>`_
 includes a formal grammar, specification, as well as links to other JMESPath
