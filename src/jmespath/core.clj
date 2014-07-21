@@ -1,7 +1,8 @@
 (ns jmespath.core
   "Parses JMESPath expressions"
   {:author "Michael Dowling"}
-  (:use jmespath.tree)
+  (:use [jmespath.tree]
+        [jmespath.functions])
   (:require [instaparse.core :as insta]))
 
 (def ^:private parser
@@ -53,12 +54,24 @@
      keyval-value          = exp"
     :auto-whitespace (insta/parser "whitespace = #'\\s+'")))
 
-(defn parse [exp]
-  "Parses a JMESPath expression into an AST"
-  (->> (parser exp) (insta/transform {
-    :number (comp read-string str)
-    :digit str})))
+(defn parse
+  "Parses a JMESPath expression into an AST. Accepts an expression as a
+   string and returns a sequence of hiccup data."
+  [exp]
+  (->> (parser exp)
+       (insta/transform {:number (comp read-string str)
+                         :digit str})))
 
-(defn search [exp data]
-  "Searches the provides data structures using a JMESPath expression"
-  (interpret (parse exp) data))
+(defn search
+  "Returns data from the input that matches the provided JMESPath expression.
+
+   Accepts an expression as a string and an optional list of keyword
+   arguments:
+
+   :fnprovider Function that accepts a function name and sequence of arguments
+               and returns the result of invoking the function. If no value is
+               provided, then the default jmespath.function/invoke multimethod
+               is utilized."
+  [exp data &{:as options}]
+  (let [fnprovider (get options :fnprovider invoke)]
+    (interpret (parse exp) data :fnprovider fnprovider)))
