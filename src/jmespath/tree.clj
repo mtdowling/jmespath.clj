@@ -106,6 +106,11 @@
     (get-in ast [1 1])
     (map (fn [node] (visit node data options)) (rest (nth ast 2)))))
 
+(defmethod visit :expr-type [ast data options]
+  "Returns a function that can be invoked to provide an expression result"
+  (fn [with-data]
+    (visit (nth ast 1) with-data options)))
+
 (defn interpret
   "Interprets the given AST with the provided data. Accepts an AST in
    hiccup format, the data to interpret, and the following keyword arguments

@@ -82,9 +82,28 @@
   "Returns the highest found number in the provided array argument."
   (min-max fname args max))
 
+(defn- proxy-by [fname args]
+  "Validates the arguments of a *_by function and returns the validated args"
+  (validate-fn {:name fname
+                :positional [(arg-type "array")
+                             (arg-type "expression")]
+                :args (vec args)}))
+
+(defmethod invoke "max_by" [fname args]
+  "Return the maximum element in an array using the expression expr as
+   the comparison key."
+  (let [args (proxy-by fname args)]
+    (apply max-key (nth args 1) (nth args 0))))
+
 (defmethod invoke "min" [fname args]
   "Returns the lowest found number in the provided array argument."
   (min-max fname args min))
+
+(defmethod invoke "min_by" [fname args]
+  "Return the minimum element in an array using the expression expr as
+   the comparison key."
+  (let [args (proxy-by fname args)]
+    (apply min-key (nth args 1) (nth args 0))))
 
 (defmethod invoke "not_null" [fname args]
   "Returns the first argument that does not resolve to null."
@@ -101,6 +120,11 @@
                                                   (arg-seq "number"))]
                            :args (vec args)})]
     (sort (nth args 0))))
+
+(defmethod invoke "sort_by" [fname args]
+  "Sort an array using an expression expr as the sort key."
+  (let [args (proxy-by fname args)]
+    (sort-by (nth args 1) (nth args 0))))
 
 (defmethod invoke "sum" [fname args]
   "Returns the sum of the provided array argument."
