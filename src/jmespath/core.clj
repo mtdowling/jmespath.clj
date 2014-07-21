@@ -3,7 +3,8 @@
   {:author "Michael Dowling"}
   (:use [jmespath.tree]
         [jmespath.functions])
-  (:require [instaparse.core :as insta]))
+  (:require [instaparse.core :as insta]
+            [instaparse.failure :as failure]))
 
 (def ^:private parser
   (insta/parser
@@ -54,13 +55,19 @@
      keyval-value          = exp"
     :auto-whitespace (insta/parser "whitespace = #'\\s+'")))
 
+(defn- transform-tree [tree]
+  (insta/transform {:number (comp read-string str)
+                    :digit str}
+                   tree))
+
 (defn parse
   "Parses a JMESPath expression into an AST. Accepts an expression as a
    string and returns a sequence of hiccup data."
   [exp]
-  (->> (parser exp)
-       (insta/transform {:number (comp read-string str)
-                         :digit str})))
+  (let [tree (parser exp)]
+    (if (insta/failure? tree)
+      (throw (Exception. (failure/pprint-failure tree)))
+      (transform-tree (parser exp)))))
 
 (defn search
   "Returns data from the input that matches the provided JMESPath expression.
