@@ -5,6 +5,7 @@
             :url "http://opensource.org/licenses/mit-license.php"
             :distribution :repo}
   :dependencies [[org.clojure/clojure "1.5.1"]
-                 [instaparse "1.3.2"]]
+                 [instaparse "1.3.2"]
+                 [cheshire "5.3.1"]]
   :main jmespath.core
   :profiles {:dev {:dependencies [[rhizome "0.2.1"]]}})

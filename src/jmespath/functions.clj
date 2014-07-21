@@ -1,7 +1,8 @@
 (ns jmespath.functions
   "Executes JMESPath functions"
   (:use jmespath.args)
-  (:require [instaparse.core :as insta]))
+  (:require [instaparse.core :as insta]
+            [cheshire.core :refer :all]))
 
 (defmulti invoke (fn [fname _] fname))
 
@@ -21,12 +22,46 @@
     (/ (reduce + (nth args 0))
        (count (nth args 0)))))
 
-(defmethod invoke "not_null" [fname args]
-  "Returns the first argument that does not resolve to null."
-  (let [args (validate-fn {:name "not_null"
-                           :variadic (arg-type "any")
+(defmethod invoke "contains" [fname args]
+  "Returns true if the given $subject contains the provided $search string."
+  (let [args (validate-fn {:name fname
+                           :positional [(arg-alts "array" "string")
+                                        (arg-any)]
                            :args (vec args)})]
-    (first (filter #(not= % nil) args))))
+    (let [haystack (nth args 0), needle (nth args 1)]
+      (if (string? haystack)
+        (not= (.indexOf haystack needle) -1)
+        (boolean (some #(= % needle) haystack))))))
+
+(defmethod invoke "ceil" [fname args]
+  "Returns the next highest integer value by rounding up if necessary."
+  (let [args (validate-fn {:name fname
+                           :positional [(arg-type "number")]
+                           :args (vec args)})]
+    (int (Math/ceil (nth args 0)))))
+
+(defmethod invoke "floor" [fname args]
+  "Returns the next lowest integer value by rounding down if necessary."
+  (let [args (validate-fn {:name fname
+                           :positional [(arg-type "number")]
+                           :args (vec args)})]
+    (int (Math/floor (nth args 0)))))
+
+(defmethod invoke "join" [fname args]
+  "Returns all of the elements from the provided $stringsarray array
+   joined together using the $glue argument as a separator between each."
+  (let [args (validate-fn {:name fname
+                           :positional [(arg-type "string")
+                                        (arg-seq "string")]
+                           :args (vec args)})]
+    (clojure.string/join (nth args 0) (nth args 1))))
+
+(defmethod invoke "keys" [fname args]
+  "Returns an array containing the keys of the provided object."
+  (let [args (validate-fn {:name fname
+                           :positional [(arg-type "object")]
+                           :args (vec args)})]
+    (keys (nth args 0))))
 
 (defmethod invoke "length" [fname args]
   "Returns the length of the given argument."
@@ -35,10 +70,82 @@
                            :args (vec args)})]
     (count (nth args 0))))
 
+(defn- min-max [fname args meth]
+  "Shared method used to implement the min and max functions"
+  (let [args (validate-fn {:name fname
+                           :positional [(arg-seq "number")]
+                           :args (vec args)})]
+    (when (count (nth args 0))
+      (apply meth (nth args 0)))))
+
+(defmethod invoke "max" [fname args]
+  "Returns the highest found number in the provided array argument."
+  (min-max fname args max))
+
+(defmethod invoke "min" [fname args]
+  "Returns the lowest found number in the provided array argument."
+  (min-max fname args min))
+
+(defmethod invoke "not_null" [fname args]
+  "Returns the first argument that does not resolve to null."
+  (let [args (validate-fn {:name fname
+                           :variadic (arg-any)
+                           :args (vec args)})]
+    (first (filter #(not= % nil) args))))
+
+(defmethod invoke "sort" [fname args]
+  "This function accepts an array $list argument and returns the sorted
+   elements of the $list as an array."
+  (let [args (validate-fn {:name fname
+                           :positional [(arg-alts (arg-seq "string")
+                                                  (arg-seq "number"))]
+                           :args (vec args)})]
+    (sort (nth args 0))))
+
+(defmethod invoke "sum" [fname args]
+  "Returns the sum of the provided array argument."
+  (let [args (validate-fn {:name fname
+                           :positional [(arg-seq "number")]
+                           :args (vec args)})]
+    (apply + (nth args 0))))
+
+(defmethod invoke "to_string" [fname args]
+  "Returns the provided value as a string or JSON encoded string"
+  (let [args (validate-fn {:name fname
+                           :positional [(arg-any)]
+                           :args (vec args)})]
+    (let [arg (nth args 0)]
+      ; Pass strings through, JSON encode everything else
+      (if (string? arg)
+        arg
+        (generate-string arg)))))
+
+(defmethod invoke "to_number" [fname args]
+  "Returns the provided value as a number or null"
+  (let [args (validate-fn {:name fname
+                           :positional [(arg-any)]
+                           :args (vec args)})]
+    (let [arg (nth args 0), provided-type (gettype (nth args 0))]
+      (cond
+        ; Number types pass through without modification
+        (= provided-type "number") arg
+        ; Parse strings to numbers if they match the json-number production
+        (and (= provided-type "string")
+             (re-matches  #"^\-?[0-9]*(\.[0-9]+)?([e|E][+|\-][0-9]+)?$" arg))
+             (read-string arg)
+       :default nil))))
+
 (defmethod invoke "type" [fname args]
   "Returns the JavaScript type of the given $subject argument as a
    string value."
   (let [args (validate-fn {:name fname
-                           :positional [(arg-type "any")]
+                           :positional [(arg-any)]
                            :args (vec args)})]
     (gettype (nth args 0))))
+
+(defmethod invoke "values" [fname args]
+  "Returns the values of the given object as an array."
+  (let [args (validate-fn {:name fname
+                           :positional [(arg-type "object")]
+                           :args (vec args)})]
+    (vals (nth args 0))))

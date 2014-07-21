@@ -15,12 +15,6 @@
     (number? subject)           "number"
     (function? subject)         "expression"))
 
-(defn- valid-type?
-  "Determines if the provided argument matches the provided type"
-  [expected arg]
-  (or (= expected "any") ; "any" matches any given argument type
-      (= expected (gettype arg))))
-
 (defn- invalid-arity [fname args expected variadic]
   "Throws the correct exception for when an invalid argument arity"
   (let [expected-str (if variadic (str expected " or more") expected)]
@@ -49,17 +43,26 @@
         a (get args pos)]
     (if (p a) a (invalid-type fname pos p a))))
 
+(defn arg-any []
+  "Accepts any argument and always returns true"
+  (fn [arg] true))
+
 (defn arg-type [expected]
   "Returns a function that checks if an argument is valid based on type"
   (with-meta
-    (fn [arg] (valid-type? expected arg))
+    (fn [arg] (= expected (gettype arg)))
     {:validation expected}))
 
-(defn arg-alts [& alts]
-  "Returns a function that checks if an argument is of one or more types"
-  (with-meta
-    (fn [arg] (some #(= % (gettype arg)) alts))
-    {:validation (join " or " alts)}))
+(defn arg-alts [& conds]
+  "Returns a function that ensures an argument satisfies one of the
+   provided conditional functions. If one of the arguments is a string, then
+   an arg-type validator will be utilized."
+  (let [conds (map (fn [x]
+                     (if (string? x) (arg-type x) x))
+                   conds)]
+    (with-meta
+      (fn [arg] (some #(% arg) conds))
+      {:validation (join " or " (map #(:validation (meta %)) conds))})))
 
 (defn arg-seq [& types]
   "Returns a function that ensures an argument collection uses a
