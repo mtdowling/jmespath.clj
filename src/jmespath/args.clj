@@ -19,14 +19,15 @@
   "Throws the correct exception for when an invalid argument arity"
   (let [expected-str (if variadic (str expected " or more") expected)]
     (throw (Exception. (str fname " expects " expected-str " arguments. "
-                          (count args) " arguments were provided.")))))
+                            (count args) " arguments were provided.")))))
 
 (defn- invalid-type [fname pos expected actual]
   "Throws an exception for when an invalid type is encountered"
   (let [expected-str (get (meta expected) :validation)]
     (throw (Exception. (str "Invalid argument provided to argument "
-                          (+ 1 pos) " of " fname ". Expected "
-                          expected-str ", got `" actual "`.")))))
+                            (+ 1 pos) " of " fname ". Expected "
+                            expected-str "; got " (gettype actual)
+                            ", `" actual "`.")))))
 
 (defn- get-positioned-parameter [fname positional variadic pos args]
   "Gets a positional parameter from a list of parameters. If a postional
@@ -41,16 +42,21 @@
    function arity and that each argument type matches the expected type."
   (let [p (get-positioned-parameter fname positional variadic pos args)
         a (get args pos)]
-    (if (p a) a (invalid-type fname pos p a))))
+    (let [result (p a)]
+      (if (nth result 0)
+        (nth result 1)
+        (invalid-type fname pos p a)))))
 
 (defn arg-any []
-  "Accepts any argument and always returns true"
-  (fn [arg] true))
+  "Accepts any argument and always returns [arg, true]"
+  (with-meta
+    (fn [arg] [true arg])
+    {:validation "any"}))
 
 (defn arg-type [expected]
   "Returns a function that checks if an argument is valid based on type"
   (with-meta
-    (fn [arg] (= expected (gettype arg)))
+    (fn [arg] [(= expected (gettype arg)) arg])
     {:validation expected}))
 
 (defn arg-alts [& conds]
@@ -61,7 +67,7 @@
                      (if (string? x) (arg-type x) x))
                    conds)]
     (with-meta
-      (fn [arg] (some #(% arg) conds))
+      (fn [arg] [(some #(% arg) conds) arg])
       {:validation (join " or " (map #(:validation (meta %)) conds))})))
 
 (defn arg-seq [& types]
@@ -69,12 +75,30 @@
    consistent type"
   (with-meta
     (fn [arg]
-      (and (= (gettype arg) "array")
-           (let [first-type (gettype (first arg))]
-             (and (some #(= first-type %) types)
-                  (every? #(= first-type (gettype %)) arg)))))
+      [(and (= (gettype arg) "array")
+            (let [first-type (gettype (first arg))]
+              (and (some #(= first-type %) types)
+                   (every? #(= first-type (gettype %)) arg))))
+       arg])
     {:validation (str "a sequence of " (join " or " types)
                       " elements")}))
+
+(defn arg-expr
+  "Returns a function that validates that the provided argument is an
+   expression and ensures that the return type of each expression is valid."
+  [fname validator]
+  (let [err-msg (str "expression type that returns "
+                     (:validation (meta validator)))]
+    (let [validator
+          (with-meta validator
+                     {:validation (str err-msg ". One of the results returned"
+                                       " an invalid value")})]
+      (with-meta
+        (fn [arg]
+          (if (nth ((arg-type "expression") arg) 0)
+            [true (fn [x] (validate-arg fname nil validator [(arg x)] 0))]
+            [false arg]))
+      {:validation err-msg}))))
 
 (defn validate
   "Validates the arguments of a function"

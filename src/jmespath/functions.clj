@@ -86,7 +86,7 @@
   "Validates the arguments of a *_by function and returns the validated args"
   (validate {:name fname
              :positional [(arg-type "array")
-                          (arg-type "expression")]
+                          (arg-expr fname (arg-type "number"))]
              :args (vec args)}))
 
 (defmethod invoke "max_by" [fname args]
