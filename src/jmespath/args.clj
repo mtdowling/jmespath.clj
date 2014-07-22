@@ -76,7 +76,7 @@
     {:validation (str "a sequence of " (join " or " types)
                       " elements")}))
 
-(defn validate-fn
+(defn validate
   "Validates the arguments of a function"
   [{:keys [name positional variadic args]
     :or {positional [], args []}}]
