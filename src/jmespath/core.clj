@@ -64,8 +64,8 @@
 
 (defn parse
   "Parses a JMESPath expression into an AST. Accepts an expression as a
-   string and returns a sequence of hiccup data. Throws an
-   IllegalArgumentException if the expression fails to parse."
+  string and returns a sequence of hiccup data. Throws an
+  IllegalArgumentException if the expression fails to parse."
   [exp]
   (let [tree (parser exp)]
     (if (insta/failure? tree)
@@ -75,16 +75,16 @@
 (defn search
   "Returns data from the input that matches the provided JMESPath expression.
 
-   Accepts an expression as a string and an optional list of keyword
-   arguments:
+  Accepts an expression as a string and an optional list of keyword
+  arguments:
 
-   :fnprovider Function that accepts a function name and sequence of arguments
-               and returns the result of invoking the function. If no value is
-               provided, then the default jmespath.function/invoke multimethod
-               is utilized.
+  :fnprovider Function that accepts a function name and sequence of arguments
+              and returns the result of invoking the function. If no value is
+              provided, then the default jmespath.function/invoke multimethod
+              is utilized.
 
-   If the provided expression is invalid, and IllegalArgumentException is
-   thrown."
+  If the provided expression is invalid, and IllegalArgumentException is
+  thrown."
   [exp data &{:as options}]
   (let [fnprovider (get options :fnprovider invoke)]
     (interpret (parse exp) data :fnprovider fnprovider)))

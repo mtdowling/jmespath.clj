@@ -1,15 +1,15 @@
 (ns jmespath.tree
   "Traverses and interprets JMESPath ASTs. JMESPath AST nodes are visited
-   using the visit multimethod."
+  using the visit multimethod."
   (:require jmespath.functions))
 
 (defmulti visit (fn [ast data options] (first ast)))
 
 (defmethod visit :identifier [ast data options]
   "Visits an identifier node, returning either the string
-   referenced by the node, or a keyword referenced by the
-   node (e.g., 'a' or :a). If the argument is not a map,
-   then this method return nil."
+  referenced by the node, or a keyword referenced by the
+  node (e.g., 'a' or :a). If the argument is not a map,
+  then this method return nil."
   (when (map? data)
     (let [n (get ast 1)]
       (or (data n) (data (keyword n))))))
@@ -21,7 +21,7 @@
 
 (defn- subexpr [ast data options]
   "Returns the value of the right expression passed into the
-   left expression."
+  left expression."
   (visit (get ast 2)
          (visit (get ast 1) data options) options))
 
@@ -102,7 +102,7 @@
 
 (defmethod visit :function-expr [ast data options]
   "Invokes a function with a list of arguments using the :fnprovided found
-   in the options map."
+  in the options map."
   ((:fnprovider options)
     (get-in ast [1 1])
     (map (fn [node] (visit node data options)) (rest (nth ast 2)))))
@@ -114,10 +114,10 @@
 
 (defn interpret
   "Interprets the given AST with the provided data. Accepts an AST in
-   hiccup format, the data to interpret, and the following keyword arguments
+  hiccup format, the data to interpret, and the following keyword arguments
 
-   :fnprovider Function invoked to handle JMESPath function calls. This
-               keyword is required."
+  :fnprovider Function invoked to handle JMESPath function calls. This
+              keyword is required."
   [ast data &{:as options}]
   {:pre [(contains? options :fnprovider)]}
   (visit (first ast) data options))

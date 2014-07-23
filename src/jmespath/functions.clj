@@ -1,8 +1,8 @@
 (ns jmespath.functions
   "Provides default implementations of the various JMESPath functions defined
-   in the specification. By default, JMESPath for Clojure uses the double-
-   dispatch method jmespath.functions/invoke in order to provide functions to
-   the tree interpreter that is utilized in jmespath.core/search."
+  in the specification. By default, JMESPath for Clojure uses the double-
+  dispatch method jmespath.functions/invoke in order to provide functions to
+  the tree interpreter that is utilized in jmespath.core/search."
   (:require [jmespath.args :refer :all]
             [instaparse.core :as insta]
             [cheshire.core :as cheshire]))
@@ -55,7 +55,7 @@
 
 (defmethod invoke "join" [fname args]
   "Returns all of the elements from the provided $stringsarray array
-   joined together using the $glue argument as a separator between each."
+  joined together using the $glue argument as a separator between each."
   (let [args (validate {:name fname
                         :positional [(arg-type "string")
                                      (arg-seq "string")]
@@ -90,10 +90,10 @@
 
 (defn- proxy-by [fname args]
   "Validates the arguments (args) of a *_by function referred to as fname and
-   returns the validated arguments. The first argument MUST be an array and
-   the second argument MUST be an expression type that returns a number. Each
-   expression type return value is tested to ensure that it returns the
-   correct type."
+  returns the validated arguments. The first argument MUST be an array and
+  the second argument MUST be an expression type that returns a number. Each
+  expression type return value is tested to ensure that it returns the
+  correct type."
   (validate {:name fname
              :positional [(arg-type "array")
                           (arg-expr fname (arg-type "number"))]
@@ -101,7 +101,7 @@
 
 (defmethod invoke "max_by" [fname args]
   "Return the maximum element in an array using the expression expr as
-   the comparison key."
+  the comparison key."
   (let [args (proxy-by fname args)]
     (apply max-key (nth args 1) (nth args 0))))
 
@@ -124,7 +124,7 @@
 
 (defmethod invoke "sort" [fname args]
   "This function accepts an array $list argument and returns the sorted
-   elements of the $list as an array."
+  elements of the $list as an array."
   (let [args (validate {:name fname
                         :positional [(arg-alts (arg-seq "string")
                                                (arg-seq "number"))]
@@ -145,8 +145,8 @@
 
 (defmethod invoke "to_string" [fname args]
   "Returns the provided value as a string. If a string value is provided, the
-   string is returned unchanged. Any other type of value will be returned as
-   a JSON encoded string"
+  string is returned unchanged. Any other type of value will be returned as
+  a JSON encoded string"
   (let [args (validate {:name fname
                         :positional [(arg-any)]
                         :args (vec args)})]
@@ -155,9 +155,9 @@
 
 (defmethod invoke "to_number" [fname args]
   "Returns the provided value as a number or nil. If the value is a number,
-   the number is passed through unchanged. If the value is a string that looks
-   like a number, it is parsed using Clojure's read-string function. Other
-   types of values will return nil."
+  the number is passed through unchanged. If the value is a string that looks
+  like a number, it is parsed using Clojure's read-string function. Other
+  types of values will return nil."
   (let [args (validate {:name fname
                         :positional [(arg-any)]
                         :args (vec args)})]
@@ -173,7 +173,7 @@
 
 (defmethod invoke "type" [fname args]
   "Returns the JavaScript type of the given $subject argument as a
-   string value."
+  string value."
   (let [args (validate {:name fname
                         :positional [(arg-any)]
                         :args (vec args)})]
