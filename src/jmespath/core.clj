@@ -1,9 +1,9 @@
 (ns jmespath.core
   "Parses JMESPath expressions"
   {:author "Michael Dowling"}
-  (:use [jmespath.tree]
-        [jmespath.functions])
-  (:require [instaparse.core :as insta]
+  (:require [jmespath.functions :refer (invoke)]
+            [jmespath.tree :refer (interpret)]
+            [instaparse.core :as insta]
             [instaparse.failure :as failure]))
 
 (def ^:private parser

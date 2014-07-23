@@ -1,7 +1,7 @@
 (ns jmespath.args
   "Parses and validates JMESPath function signatures"
-  (:use [clojure.test :only (function?)])
-  (:use [clojure.string :only (join)]))
+  (:require [clojure.test :refer (function?)]
+            [clojure.string :refer (join)]))
 
 (defn gettype [subject]
   "Get the JMESPath type of a Clojure variable as a string"

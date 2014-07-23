@@ -1,6 +1,6 @@
 (ns jmespath.tree
   "Traverses and interprets JMESPath ASTs"
-  (:use jmespath.functions))
+  (:require jmespath.functions))
 
 (defmulti visit (fn [ast data options] (first ast)))
 

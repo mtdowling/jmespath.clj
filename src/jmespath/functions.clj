@@ -1,8 +1,8 @@
 (ns jmespath.functions
   "Executes JMESPath functions"
-  (:use jmespath.args)
-  (:require [instaparse.core :as insta]
-            [cheshire.core :refer :all]))
+  (:require [jmespath.args :refer :all]
+            [instaparse.core :as insta]
+            [cheshire.core :as cheshire]))
 
 (defmulti invoke (fn [fname _] fname))
 
@@ -142,7 +142,7 @@
       ; Pass strings through, JSON encode everything else
       (if (string? arg)
         arg
-        (generate-string arg)))))
+        (cheshire/generate-string arg)))))
 
 (defmethod invoke "to_number" [fname args]
   "Returns the provided value as a number or null"
