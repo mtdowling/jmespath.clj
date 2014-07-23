@@ -1,5 +1,8 @@
 (ns jmespath.functions
-  "Executes JMESPath functions"
+  "Provides default implementations of the various JMESPath functions defined
+   in the specification. By default, JMESPath for Clojure uses the double-
+   dispatch method jmespath.functions/invoke in order to provide functions to
+   the tree interpreter that is utilized in jmespath.core/search."
   (:require [jmespath.args :refer :all]
             [instaparse.core :as insta]
             [cheshire.core :as cheshire]))
@@ -11,6 +14,8 @@
   (let [args (validate {:name fname
                         :positional [(arg-type "number")]
                         :args (vec args)})]
+    ; Returns the maximum of the argument or the negative value
+    ; of the argument
     (max (nth args 0) (- (nth args 0)))))
 
 (defmethod invoke "avg" [fname args]
@@ -28,7 +33,8 @@
                         :positional [(arg-alts "array" "string")
                                      (arg-any)]
                         :args (vec args)})]
-    (let [haystack (nth args 0), needle (nth args 1)]
+    (let [haystack (nth args 0)
+          needle   (nth args 1)]
       (if (string? haystack)
         (not= (.indexOf haystack needle) -1)
         (boolean (some #(= % needle) haystack))))))
@@ -83,7 +89,11 @@
   (min-max fname args max))
 
 (defn- proxy-by [fname args]
-  "Validates the arguments of a *_by function and returns the validated args"
+  "Validates the arguments (args) of a *_by function referred to as fname and
+   returns the validated arguments. The first argument MUST be an array and
+   the second argument MUST be an expression type that returns a number. Each
+   expression type return value is tested to ensure that it returns the
+   correct type."
   (validate {:name fname
              :positional [(arg-type "array")
                           (arg-expr fname (arg-type "number"))]
@@ -134,18 +144,20 @@
     (apply + (nth args 0))))
 
 (defmethod invoke "to_string" [fname args]
-  "Returns the provided value as a string or JSON encoded string"
+  "Returns the provided value as a string. If a string value is provided, the
+   string is returned unchanged. Any other type of value will be returned as
+   a JSON encoded string"
   (let [args (validate {:name fname
                         :positional [(arg-any)]
                         :args (vec args)})]
     (let [arg (nth args 0)]
-      ; Pass strings through, JSON encode everything else
-      (if (string? arg)
-        arg
-        (cheshire/generate-string arg)))))
+      (if (string? arg) arg (cheshire/generate-string arg)))))
 
 (defmethod invoke "to_number" [fname args]
-  "Returns the provided value as a number or null"
+  "Returns the provided value as a number or nil. If the value is a number,
+   the number is passed through unchanged. If the value is a string that looks
+   like a number, it is parsed using Clojure's read-string function. Other
+   types of values will return nil."
   (let [args (validate {:name fname
                         :positional [(arg-any)]
                         :args (vec args)})]
