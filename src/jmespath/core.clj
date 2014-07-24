@@ -8,9 +8,9 @@
 
 (def ^:private parser
   (insta/parser
-    "<exp>                 = stat | pipe-expr
+    "<exp>                 = stat | pipe-expr | flatten-projection
      pipe-expr             = exp <'|'> exp
-     <stat>                = group | projection | literal | condition |
+     <stat>                = group | greedy-projection | literal | condition |
                              index | chunk | sub-expr | current-node
      <chunk>               = identifier | function-expr |
                              multi-select-list | multi-select-hash
@@ -24,8 +24,7 @@
      <unquoted-string>     = #'[A-Za-z]+[0-9A-Za-z_]*'
      <quoted-string>       = <'\"'> #'(?:\\|\\\"|[^\"])*' <'\"'>
      literal               = <'`'> #'(?:\\|\\`|[^`])*' <'`'>
-     <projection>          = value-projection |
-                             flatten-projection |
+     <greedy-projection>   = value-projection |
                              index-projection |
                              filter-projection
      projection-subject    = identity | exp
