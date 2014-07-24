@@ -43,14 +43,16 @@
         v
         ; Otherwise, attempt to JSON parse the string
         (try
-          (doall (cheshire/decode (nth ast 1)))
+          (cheshire/decode (nth ast 1))
           (catch JsonParseException e (nth ast 1)))))))
 
 (defmethod visit :unary-condition [ast data options]
-  (let [type (get-in ast [1 0])
-        value (get-in ast [1 1])]
-    (cond
-      (= type :negation) (not (visit value data options)))))
+  "Visits a unary condition, a condition statement that has a single member"
+  (visit (nth ast 1) data options))
+
+(defmethod visit :negation [ast data options]
+  "Returns the negation of a value"
+  (not (visit (nth ast 1) data options)))
 
 (defmethod visit :binary-condition [ast data options]
   "Returns the result of a binary condition"
@@ -63,42 +65,64 @@
       (= type "&&") (and (visit lhs data options) (visit rhs data options))
       (= type "||") (or (visit lhs data options) (visit rhs data options))
       ; Other symbols can be used literally (e.g., <, >, <=, >=)
-      :default ((resolve (symbol type))
-                 (visit lhs data options)
-                 (visit rhs data options)))))
+      :default (let [left (visit lhs data options)
+                     right (visit rhs data options)]
+                 (boolean (and (and (number? left) (number? right))
+                               ((resolve (symbol type)) left right)))))))
 
 (defn- project
-  "Applies a projection node based on a guard and map function"
+  "Applies a projection node based on a map function"
   [ast data guard mapfn options]
   (let [lhs (visit (get-in ast [1 1]) data options)]
-    (when (guard lhs)
+    (if-let [guarded (guard lhs)]
       (filter
-        (fn [item] (not (nil? item)))
-        (map mapfn lhs)))))
+        #(not (nil? %))
+        (map mapfn guarded)))))
 
 (defmethod visit :value-projection [ast data options]
   "Applies a value-project only to maps"
   (let [rexp (get-in ast [2 1])]
-    (project ast data
-      (fn [lhs] (map? lhs))
-      (fn [item] (visit rexp (get item 1) options)))))
+    (project ast
+             data
+             #(when (map? %) %)
+             #(visit rexp (get % 1) options)
+             options)))
 
 (defmethod visit :index-projection [ast data options]
   "Applies an index-projection to vectors or lists"
   (let [rexp (get-in ast [2 1])]
-    (project ast data
-      (fn [lhs] (or (list? lhs) (vector? lhs)))
-      (fn [item] (visit rexp item options)))))
+    (project ast
+             data
+             #(when (sequential? %) %)
+             #(visit rexp % options)
+             options)))
 
 (defmethod visit :filter-projection [ast data options]
   "Applies a filter-projection to vectors or lists"
   (let [condition (get ast 2)
         rexp (get-in ast [3 1])]
-    (project ast data
-      (fn [lhs] (or (list? lhs) (vector? lhs)))
-      (fn [item]
-        (when (visit condition item options)
-          (visit rexp item options))))))
+    (project ast
+             data
+             #(when (sequential? %) %)
+             #(when (visit condition % options)
+                (visit rexp % options))
+             options)))
+
+(defn- flatten-data
+  "Takes a sequence of data and flattens arrays up one level if they are
+  sequential."
+  [x]
+  (mapcat (fn [x] (if (sequential? x) x (list x))) x))
+
+(defmethod visit :flatten-projection [ast data options]
+  "Creates a projection that evaluates the left expression, flattens it, then
+  passes each flattened value to the right expression."
+    (let [rexp (get-in ast [2 1])]
+      (project ast
+               data
+               #(when (sequential? %) (flatten %))
+               #(visit rexp % options)
+               options)))
 
 (defmethod visit :multi-select-hash [ast data options]
   "Creates an array-map based on a list of key-value pair expressions"
