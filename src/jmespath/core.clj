@@ -52,7 +52,7 @@
      keyval-exp            = keyval-key <':'> keyval-value
      keyval-key            = identifier
      keyval-value          = exp"
-    :auto-whitespace (insta/parser "whitespace = #'\\s+'")))
+    :auto-whitespace :standard))
 
 (defn- transform-tree
   "Transforms the given Instaparse tree to make it nicer to work with"
