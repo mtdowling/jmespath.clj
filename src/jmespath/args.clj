@@ -11,9 +11,8 @@
   "Get the JMESPath type of a Clojure variable as a string"
   [subject]
   (cond
+    (sequential? subject)       "array"
     (map? subject)              "object"
-    (list? subject)             "array"
-    (vector? subject)           "array"
     (string? subject)           "string"
     (instance? Boolean subject) "boolean"
     (nil? subject)              "null"
