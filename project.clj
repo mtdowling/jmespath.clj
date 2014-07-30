@@ -8,4 +8,5 @@
                  [instaparse "1.3.2"]
                  [cheshire "5.3.1"]]
   :main jmespath.core
-  :profiles {:dev {:dependencies [[rhizome "0.2.1"]]}})
+  :profiles {:dev  {:dependencies [[rhizome "0.2.1"]]}
+             :test {:resource-paths ["test-resources"]}})
