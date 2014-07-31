@@ -81,9 +81,19 @@
               and returns the result of invoking the function. If no value is
               provided, then the default jmespath.function/invoke multimethod
               is utilized.
+  :doall      Set to true to evaluate the result immediately rather than
+              return a lazy sequence. A doall will only be utilized if the
+              parsed result wold have otherwise been a LazySeq. This function
+              will return a lazy sequence by default for things like
+              projections.
 
   If the provided expression is invalid, and IllegalArgumentException is
   thrown."
   [exp data &{:as options}]
-  (let [fnprovider (get options :fnprovider invoke)]
-    (interpret (parse exp) data :fnprovider fnprovider)))
+  (let [result (interpret (parse exp)
+                          data
+                          :fnprovider (get options :fnprovider invoke))]
+    (if (and (= false (get options :doall))
+             (instance? clojure.lang.LazySeq result))
+      (doall result)
+      result)))
