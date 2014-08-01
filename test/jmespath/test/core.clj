@@ -24,22 +24,34 @@
        (filter #(.isFile %)
                (-> "compliance/" io/resource io/file file-seq))))
 
+(defn get-test-cases
+  "Gets a sequence of test cases from the filesystem. Each yielded map
+  contains the following keys:
+
+  :file - Name of the file that contains the test
+  :given - Given parameters for the test case
+  :expr - Test case expression
+  :result - Expected result
+  :error - Expected error"
+  []
+  (flatten (for [test-suite (get-test-suites)]
+    (for [suite (nth test-suite 1)]
+      (for [case (get suite "cases")]
+        {:file   (nth test-suite 0)
+         :given  (get suite "given")
+         :expr   (get case "expression")
+         :result (get case "result")
+         :error  (get case "error")})))))
+
 (deftest passes-compliance
-  (doseq [test-suite (get-test-suites)]
-    (doseq [suite (seq (nth test-suite 1))]
-      (let [given (get suite "given")
-            cases (get suite "cases")]
-        (doseq [case (seq cases)]
-          (let [expr     (get case "expression")
-                expected (get case "result")
-                err      (get case "error")]
-            (testing (str (nth test-suite 0) ": " expr)
-              (try
-                (let [result (jmespath/search expr given :doall true)]
-                  (is (nil? err)
-                      (str "Should have failed: " err))
-                  (is (= expected result)
-                      (str "Expected " expected ", but got " (seq result))))
-                (catch Exception e
-                  (is (string? err)
-                      (str "Should not have failed: " e)))))))))))
+  (doseq [{:keys [file given expr result error]} (get-test-cases)]
+    (testing (str file ": " expr)
+      (try
+        (let [actual (jmespath/search expr given :doall true)]
+          (is (nil? error)
+              (str "Should have failed: " error))
+          (is (= result actual)
+              (str "Expected " result ", but got " (seq actual))))
+        (catch Exception e
+          (is (string? error)
+              (str "Should not have failed: " e)))))))
