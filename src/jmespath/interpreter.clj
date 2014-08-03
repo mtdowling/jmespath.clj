@@ -1,4 +1,4 @@
-(ns jmespath.tree
+(ns jmespath.interpreter
   "Traverses and interprets JMESPath ASTs. JMESPath AST nodes are visited
   using the visit multimethod."
   (:require [jmespath.functions]

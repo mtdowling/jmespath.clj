@@ -2,7 +2,7 @@
   "Parses and evaluated JMESPath expression over Clojure data structures."
   {:author "Michael Dowling"}
   (:require [jmespath.functions :refer (invoke)]
-            [jmespath.tree :refer (interpret)]
+            [jmespath.interpreter :refer (interpret)]
             [instaparse.core :as insta]
             [instaparse.failure :as failure]))
 
