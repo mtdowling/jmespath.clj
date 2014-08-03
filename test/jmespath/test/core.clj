@@ -51,7 +51,7 @@
           (is (nil? error)
               (str "Should have failed: " error))
           (is (= result actual)
-              (str "Expected " result ", but got " (seq actual))))
+              (str "Expected " result ", but got " (apply str actual))))
         (catch Exception e
           (is (string? error)
               (str "Should not have failed: " e)))))))
