@@ -4,9 +4,10 @@
   :license {:name "The MIT License"
             :url "http://opensource.org/licenses/mit-license.php"
             :distribution :repo}
-  :dependencies [[org.clojure/clojure "1.5.1"]
-                 [instaparse "1.3.2"]
+  :dependencies [[org.clojure/clojure "1.7.0-alpha4"]
+                 [instaparse "1.3.5"]
                  [cheshire "5.3.1"]]
   :main jmespath.core
+  :resource-paths ["src/jmespath/resource"]
   :profiles {:dev {:dependencies [[rhizome "0.2.1"]]
                    :resource-paths ["test-resources"]}})

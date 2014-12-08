@@ -4,61 +4,59 @@
   (:require [jmespath.functions :refer (invoke)]
             [jmespath.interpreter :refer (interpret)]
             [instaparse.core :as insta]
-            [instaparse.failure :as failure]))
+            [instaparse.failure :as failure]
+            [cheshire.core :as cheshire]))
 
-(def ^:private parser
+(def parser
   (insta/parser
-    "<exp>                 = stat | pipe-expr | flatten-projection
-     pipe-expr             = exp <'|'> exp
-     <stat>                = group | greedy-projection | literal | condition |
-                             index | chunk | sub-expr | current-node
-     <chunk>               = identifier | function-expr |
-                             multi-select-list | multi-select-hash
-     sub-expr              = (exp <'.'> chunk) | (exp index)
-     index                 = <'['> number <']'>
-     number                = '-'* digit+
-     <digit>               = '0' | '1' | '2' | '3' | '4' | '5' | '6' | '7' |
-                             '8' | '9'
-     <group>               = <'('> exp <')'>
-     identifier            = unquoted-string | quoted-string
-     <unquoted-string>     = #'[A-Za-z]+[0-9A-Za-z_]*'
-     <quoted-string>       = <'\"'> #'(?:\\|\\\"|[^\"])*' <'\"'>
-     literal               = <'`'> #'(?:\\|\\`|[^`])*' <'`'>
-     <greedy-projection>   = value-projection |
-                             index-projection |
-                             filter-projection
-     projection-subject    = identity | exp
-     projection-predicate  = identity | stat | <'.'> stat
-     identity              = EPSILON
-     value-projection      = projection-subject [<'.'>] <'*'> projection-predicate
-     index-projection      = projection-subject <'[*]'> projection-predicate
-     flatten-projection    = projection-subject <'[]'> projection-predicate
-     filter-projection     = projection-subject <'[?'> condition <']'> projection-predicate
-     <condition>           = unary-condition | binary-condition
-     binary-condition      = stat binop stat
-     unary-condition       = negation | stat
-     negation              = <'!'> stat
-     binop                 = '<' | '<=' | '>' | '>=' | '==' | '!=' | '&&' | '||'
-     function-expr         = function-name <'('> function-args <')'>
-     function-name         = unquoted-string
-     function-args         = [explist]
-     <explist>             = explist-item [{<','> explist-item}]
-     <explist-item>        = exp | expr-type
-     current-node          = <'@'>
-     expr-type             = <'&'> exp
-     multi-select-list     = <'['> explist <']'>
-     multi-select-hash     = <'{'> keyval-list <'}'>
-     <keyval-list>         = keyval-exp [{<','> keyval-exp}]
-     keyval-exp            = keyval-key <':'> keyval-value
-     keyval-key            = identifier
-     keyval-value          = exp"
-    :auto-whitespace :standard))
+    (clojure.java.io/resource "jmespath.txt")
+    :auto-whitespace :standard
+    :input-format :abnf))
+
+(defn- xf-json
+  "JSON decodes the provided characters, adding quotes if necessary."
+  [chars]
+  (let [s (apply str chars)]
+    ; JSON decode if it looks like JSON, otherwise add quotes then decode.
+    (if (re-find #"(true|false|null)|(^[\[\"{])|(^\-?[0-9]*(\.[0-9]+)?([e|E][+|\-][0-9]+)?$)" s)
+      (cheshire/parse-string s true)
+      (cheshire/parse-string (str "\"" s "\"") true))))
+
+(defn- xf-literal
+  "Parses a literal by dropping '`' and safely parsing the inner-JSON value."
+  [& chars]
+  [:literal (->> chars drop-last rest (apply str) xf-json)])
+
+(defn- xf-multi-select-list
+  "Normalizes multi-select-lists that have one or multiple values."
+  [& nodes]
+  (let [nodes (->> nodes (drop 1) (drop-last) vec)]
+    (if (= :multiple-values (get-in nodes [0 0]))
+      (into [:multi-select-list] (->> nodes first rest (take-nth 2)))
+      (into [:multi-select-list] nodes))))
 
 (defn- transform-tree
   "Transforms the given Instaparse tree to make it nicer to work with"
   [tree]
-  (insta/transform {:number (comp read-string str)
-                    :digit str}
+  (insta/transform {:ALPHA str
+                    :DIGIT str
+                    :DQUOTE str
+                    :unescaped-char str
+                    :unescaped-literal str
+                    :escaped-literal (comp str #(replace % "\\" ""))
+                    :index-expression (fn [& s]
+                      [:index-expression (get (vec s) 1)])
+                    :literal xf-literal
+                    :number (comp read-string str)
+                    :quoted-string (fn [& s] (xf-json s))
+                    :unquoted-string (comp read-string str)
+                    :object-predicate (fn [_ pred] [:object-predicate pred])
+                    :wildcard-values (fn [& _] [:wildcard])
+                    :wildcard-index (fn [& _] [:wildcard-index])
+                    :multi-select-list xf-multi-select-list
+                    :root-multi-select-list xf-multi-select-list
+                    :root-expression identity
+                    :expression identity}
                    tree))
 
 (defn parse
@@ -69,31 +67,22 @@
   (let [tree (parser exp)]
     (if (insta/failure? tree)
       (throw (IllegalArgumentException. (failure/pprint-failure tree)))
-      (transform-tree (parser exp)))))
+      (->> exp parser transform-tree))))
 
 (defn search
   "Returns data from the input that matches the provided JMESPath expression.
-
-  Accepts an expression as a string and an optional list of keyword
-  arguments:
+  Accepts an expression as a string, the data to search, and an optional list
+  of keyword arguments:
 
   :fnprovider Function that accepts a function name and sequence of arguments
               and returns the result of invoking the function. If no value is
               provided, then the default jmespath.function/invoke multimethod
               is utilized.
-  :doall      Set to true to evaluate the result immediately rather than
-              return a lazy sequence. A doall will only be utilized if the
-              parsed result wold have otherwise been a LazySeq. This function
-              will return a lazy sequence by default for things like
-              projections.
 
   If the provided expression is invalid, and IllegalArgumentException is
   thrown."
   [exp data &{:as options}]
-  (let [result (interpret (parse exp)
-                          data
-                          :fnprovider (get options :fnprovider invoke))]
-    (if (and (= false (get options :doall))
-             (instance? clojure.lang.LazySeq result))
-      (doall result)
-      result)))
+  (interpret
+    (parse exp)
+    data
+    :fnprovider (get options :fnprovider invoke)))
