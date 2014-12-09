@@ -35,6 +35,13 @@
       (into [:multi-select-list] (->> nodes first rest (take-nth 2)))
       (into [:multi-select-list] nodes))))
 
+(defn- list-with-csv [nodes]
+  (->> nodes (drop 1) (drop-last) (take-nth 2) vec))
+
+(defmacro xf-csv [node-name]
+  '(fn [& nodes]
+    (into [`node-name] (list-with-csv nodes))))
+
 (defn- transform-tree
   "Transforms the given Instaparse tree to make it nicer to work with"
   [tree]
@@ -51,12 +58,21 @@
                     :quoted-string (fn [& s] (xf-json s))
                     :unquoted-string (comp read-string str)
                     :object-predicate (fn [_ pred] [:object-predicate pred])
-                    :wildcard-values (fn [& _] [:wildcard])
-                    :wildcard-index (fn [& _] [:wildcard-index])
-                    :multi-select-list xf-multi-select-list
+                    :or-expression (fn [l _ r] [:or-expression l r])
+                    :pipe-expression (fn [l _ r] [:pipe-expression l r])
                     :root-multi-select-list xf-multi-select-list
                     :root-expression identity
-                    :expression identity}
+                    :expression-type (fn [_ t] [:expression-type t])
+                    :keyval-expr (fn [k _ v] [:keyval-expr k v])
+                    :expression identity
+                    :multi-select-list xf-multi-select-list
+                    :multi-select-hash (xf-csv :multi-select-hash)
+                    :one-or-more-args (xf-csv :one-or-more-args)
+                    :wildcard-values (constantly :wildcard)
+                    :wildcard-index (constantly :wildcard-index)
+                    :flatten (constantly :flatten)
+                    :current-node (constantly :current-node)
+                    :no-args (constantly :no-args)}
                    tree))
 
 (defn parse
