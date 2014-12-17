@@ -38,11 +38,11 @@
 (defn- list-with-csv [nodes]
   (->> nodes (drop 1) (drop-last) (take-nth 2) vec))
 
-(defmacro xf-csv [node-name]
-  '(fn [& nodes]
-    (into [`node-name] (list-with-csv nodes))))
+(defn- xf-csv [node-name]
+  (fn [& nodes]
+    (into [node-name] (list-with-csv nodes))))
 
-(defn- transform-tree
+(defn- xf-parse-tree
   "Transforms the given Instaparse tree to make it nicer to work with"
   [tree]
   (insta/transform {:ALPHA str
@@ -75,6 +75,10 @@
                     :no-args (constantly :no-args)}
                    tree))
 
+(defn xf-ast
+  [tree]
+  tree)
+
 (defn parse
   "Parses a JMESPath expression into an AST. Accepts an expression as a
   string and returns a sequence of hiccup data. Throws an
@@ -83,7 +87,7 @@
   (let [tree (parser exp)]
     (if (insta/failure? tree)
       (throw (IllegalArgumentException. (failure/pprint-failure tree)))
-      (->> exp parser transform-tree))))
+      (->> exp parser xf-parse-tree xf-ast))))
 
 (defn search
   "Returns data from the input that matches the provided JMESPath expression.
