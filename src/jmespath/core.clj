@@ -7,11 +7,17 @@
             [instaparse.failure :as failure]
             [cheshire.core :as cheshire]))
 
-(def parser
+(def ^:private parser
   (insta/parser
     (clojure.java.io/resource "jmespath.txt")
     :auto-whitespace :standard
     :input-format :abnf))
+
+(def ^:private projection-nodes
+  #{:object-projection
+    :array-projection
+    :flatten-projection
+    :filter-projection})
 
 (defn- xf-json
   "JSON decodes the provided characters, adding quotes if necessary."
@@ -42,6 +48,20 @@
   (fn [& nodes]
     (into [node-name] (list-with-csv nodes))))
 
+(defn- is-projection [node]
+  (projection-nodes (get node 0)))
+
+(defn- right-projection [left right]
+  (conj right left [:current-node]))
+
+(defn- left-projection [left right]
+  (cond
+    (= 1 (count left)) (conj left [:current-node] right)
+    (= :current-node (get-in left [2 0])) (conj (vec (drop-last left)) right)
+    :default
+      (let [last (last left)]
+        (conj (vec (drop-last left)) [:sub-expression last right]))))
+
 (defn- xf-parse-tree
   "Transforms the given Instaparse tree to make it nicer to work with"
   [tree]
@@ -57,27 +77,36 @@
                     :number (comp read-string str)
                     :quoted-string (fn [& s] (xf-json s))
                     :unquoted-string (comp read-string str)
-                    :object-predicate (fn [_ pred] [:object-predicate pred])
                     :or-expression (fn [l _ r] [:or-expression l r])
                     :pipe-expression (fn [l _ r] [:pipe-expression l r])
                     :root-multi-select-list xf-multi-select-list
                     :root-expression identity
+                    :object-predicate (fn [_ pred] pred)
+                    :array-predicate identity
                     :expression-type (fn [_ t] [:expression-type t])
                     :keyval-expr (fn [k _ v] [:keyval-expr k v])
-                    :expression identity
+                    :expression (fn [node]
+                      ; Adds a right node to projections if needed.
+                      (if (and (is-projection node) (= 2 (count node)))
+                        (conj node [:current-node])
+                        node))
                     :multi-select-list xf-multi-select-list
                     :multi-select-hash (xf-csv :multi-select-hash)
                     :one-or-more-args (xf-csv :one-or-more-args)
-                    :wildcard-values (constantly :wildcard)
-                    :wildcard-index (constantly :wildcard-index)
-                    :flatten (constantly :flatten)
-                    :current-node (constantly :current-node)
-                    :no-args (constantly :no-args)}
+                    :wildcard-values (constantly [:object-projection])
+                    :wildcard-index (constantly [:array-projection])
+                    :flatten (constantly [:flatten])
+                    :current-node (constantly [:current-node])
+                    :no-args (constantly [:no-args])
+                    :terminating-expression identity
+                    :subexpression-subject identity
+                    :subexpression-predicate identity
+                    :subexpression (fn [left right]
+                      (cond
+                        (is-projection right) (right-projection left right)
+                        (is-projection left) (left-projection left right)
+                        :else [:subexpression left right]))}
                    tree))
-
-(defn xf-ast
-  [tree]
-  tree)
 
 (defn parse
   "Parses a JMESPath expression into an AST. Accepts an expression as a
@@ -87,7 +116,7 @@
   (let [tree (parser exp)]
     (if (insta/failure? tree)
       (throw (IllegalArgumentException. (failure/pprint-failure tree)))
-      (->> exp parser xf-parse-tree xf-ast))))
+      (->> exp parser xf-parse-tree))))
 
 (defn search
   "Returns data from the input that matches the provided JMESPath expression.
