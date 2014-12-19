@@ -99,8 +99,6 @@
                     :current-node (constantly [:current-node])
                     :no-args (constantly [:no-args])
                     :terminating-expression identity
-                    :subexpression-subject identity
-                    :subexpression-predicate identity
                     :subexpression (fn [left right]
                       (cond
                         (is-projection right) (right-projection left right)
