@@ -41,6 +41,9 @@
       (into [:multi-select-list] (->> nodes first rest (take-nth 2)))
       (into [:multi-select-list] nodes))))
 
+(defn- xf-filter [& nodes]
+  (->> nodes (drop 1) (drop-last) (into [:filter-projection])))
+
 (defn- list-with-csv [nodes]
   (->> nodes (drop 1) (drop-last) (take-nth 2) vec))
 
@@ -65,48 +68,49 @@
 (defn- xf-parse-tree
   "Transforms the given Instaparse tree to make it nicer to work with"
   [tree]
-  (insta/transform {:ALPHA str
-                    :DIGIT str
-                    :DQUOTE str
-                    :unescaped-char str
-                    :unescaped-literal str
-                    :escaped-literal (comp str #(replace % "\\" ""))
-                    :index-expression (fn [& s]
-                      [:index-expression (get (vec s) 1)])
-                    :literal xf-literal
-                    :number (comp read-string str)
-                    :quoted-string (fn [& s] (xf-json s))
-                    :unquoted-string (comp read-string str)
-                    :or-expression (fn [l _ r] [:or-expression l r])
-                    :pipe-expression (fn [l _ r] [:pipe-expression l r])
-                    :root-multi-select-list xf-multi-select-list
-                    :root-expression identity
-                    :object-predicate (fn [_ pred] pred)
-                    :array-predicate identity
-                    :expression-type (fn [_ t] [:expression-type t])
-                    :keyval-expr (fn [k _ v] [:keyval-expr k v])
-                    :expression (fn [node]
-                      ; Adds a right node to projections if needed.
-                      (if (and (is-projection node) (= 2 (count node)))
-                        (conj node [:current-node])
-                        node))
-                    :multi-select-list xf-multi-select-list
-                    :multi-select-hash (xf-csv :multi-select-hash)
-                    :one-or-more-args (xf-csv :one-or-more-args)
-                    :wildcard-values (constantly [:object-projection])
-                    :wildcard-index (constantly [:array-projection])
-                    :flatten (constantly [:flatten])
-                    :current-node (constantly [:current-node])
-                    :no-args (constantly [:no-args])
-                    :terminating-expression identity
-                    :terminating-rhs identity
-                    :group (fn [_ expr _] expr)
-                    :subexpression (fn [left right]
-                      (cond
-                        (is-projection right) (right-projection left right)
-                        (is-projection left) (left-projection left right)
-                        :else [:subexpression left right]))}
-                   tree))
+  (insta/transform
+    {:ALPHA str
+     :DIGIT str
+     :DQUOTE str
+     :unescaped-char str
+     :unescaped-literal str
+     :expression (fn [node]
+       ; Adds a right node to projections if needed.
+       (if (and (is-projection node) (= 2 (count node)))
+         (conj node [:current-node])
+         node))
+     :escaped-literal (comp str #(replace % "\\" ""))
+     :index-expression (fn [& s] [:index-expression (get (vec s) 1)])
+     :literal xf-literal
+     :number (comp read-string str)
+     :quoted-string (fn [& s] (xf-json s))
+     :unquoted-string (comp read-string str)
+     :or-expression (fn [l _ r] [:or-expression l r])
+     :pipe-expression (fn [l _ r] [:pipe-expression l r])
+     :root-multi-select-list xf-multi-select-list
+     :root-expression identity
+     :object-predicate (fn [_ pred] pred)
+     :array-predicate identity
+     :expression-type (fn [_ t] [:expression-type t])
+     :keyval-expr (fn [k _ v] [:keyval-expr k v])
+     :multi-select-list xf-multi-select-list
+     :multi-select-hash (xf-csv :multi-select-hash)
+     :one-or-more-args (xf-csv :one-or-more-args)
+     :wildcard-values (constantly [:object-projection])
+     :wildcard-index (constantly [:array-projection])
+     :flatten (constantly [:flatten-projection])
+     :current-node (constantly [:current-node])
+     :no-args (constantly [:no-args])
+     :terminating-expression identity
+     :terminating-rhs identity
+     :group (fn [_ expr _] expr)
+     :filter-expression xf-filter
+     :subexpression (fn [left right]
+       (cond
+         (is-projection right) (right-projection left right)
+         (is-projection left) (left-projection left right)
+         :else [:subexpression left right]))}
+    tree))
 
 (defn parse
   "Parses a JMESPath expression into an AST. Accepts an expression as a
@@ -130,8 +134,8 @@
 
   If the provided expression is invalid, and IllegalArgumentException is
   thrown."
-  [exp data &{:as options}]
+  [expr data &{:as options}]
   (interpret
-    (parse exp)
+    (parse expr)
     data
     :fnprovider (get options :fnprovider invoke)))

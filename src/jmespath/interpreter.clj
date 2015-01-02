@@ -5,34 +5,40 @@
             [cheshire.core :as cheshire])
   (:import [com.fasterxml.jackson.core JsonParseException]))
 
-(defmulti visit (fn [ast data options] (first ast)))
+(defmulti visit (fn [ast data opts] (first ast)))
 
-(defmethod visit :identifier [ast data options]
+(defmethod visit :identifier [ast data opts]
   "Visits an identifier node, returning either the string
   referenced by the node, or a keyword referenced by the
   node (e.g., 'a' or :a). If the argument is not a map,
   then this method return nil."
   (when (map? data)
-    (let [n (get ast 1)]
-      (or (data n) (data (keyword n))))))
+    (let [key (get ast 1)]
+      (or (data key) (data (keyword key))))))
 
-(defmethod visit :index [ast data options]
+(defmethod visit :index-expression [ast data opts]
   "Returns the nth value of a sequence, or nil"
-  (when (or (list? data) (vector? data))
-    (get data (get ast 1))))
+  (when (sequential? data)
+    (nth data (get ast 1))))
 
-(defn- subexpr [ast data options]
+(defn- subexpr [ast data opts]
   "Returns the value of the right expression passed into the
   left expression."
-  (visit (get ast 2)
-         (visit (get ast 1) data options) options))
+  (let [lhs (visit (get ast 1) data opts)]
+    (visit (get ast 2) lhs opts)))
 
-(defmethod visit :sub-expr [ast data options] (subexpr ast data options))
-(defmethod visit :pipe-expr [ast data options] (subexpr ast data options))
-(defmethod visit :current-node [ast data options] data)
-(defmethod visit :identity [ast data options] data)
+(defmethod visit :current-node [ast data opts] data)
 
-(defmethod visit :literal [ast data options]
+(defmethod visit :subexpression [ast data opts] (subexpr ast data opts))
+
+(defmethod visit :pipe-expression [ast data opts]
+  (subexpr ast data opts))
+
+(defmethod visit :or-expression [ast data opts]
+  (or (visit (get ast 1) data opts)
+      (visit (get ast 2) data opts)))
+
+(defmethod visit :literal [ast data opts]
   "Visits a literal node and JSON decodes the value if it looks like JSON"
   (let [v (nth ast 1)]
     (let [like-json ["{" "[" "\"" "0" "1" "2" "3" "4" "5" "6" "7" "8" "9" "-"]
@@ -46,67 +52,54 @@
           (cheshire/decode (nth ast 1))
           (catch JsonParseException e (nth ast 1)))))))
 
-(defmethod visit :unary-condition [ast data options]
-  "Visits a unary condition, a condition statement that has a single member"
-  (visit (nth ast 1) data options))
-
-(defmethod visit :negation [ast data options]
-  "Returns the negation of a value"
-  (not (visit (nth ast 1) data options)))
-
-(defmethod visit :binary-condition [ast data options]
+(defmethod visit :binary-condition [ast data opts]
   "Returns the result of a binary condition"
   (let [lhs (get ast 1)
         type (get-in ast [2 1])
         rhs (get ast 3)]
     (cond
-      (= type "==") (= (visit lhs data options) (visit rhs data options))
-      (= type "!=") (not= (visit lhs data options) (visit rhs data options))
-      (= type "&&") (and (visit lhs data options) (visit rhs data options))
-      (= type "||") (or (visit lhs data options) (visit rhs data options))
+      (= type "==") (= (visit lhs data opts) (visit rhs data opts))
+      (= type "!=") (not= (visit lhs data opts) (visit rhs data opts))
+      (= type "&&") (and (visit lhs data opts) (visit rhs data opts))
+      (= type "||") (or (visit lhs data opts) (visit rhs data opts))
       ; Other symbols can be used literally (e.g., <, >, <=, >=)
-      :default (let [left (visit lhs data options)
-                     right (visit rhs data options)]
+      :default (let [left (visit lhs data opts)
+                     right (visit rhs data opts)]
                  (boolean (and (and (number? left) (number? right))
                                ((resolve (symbol type)) left right)))))))
 
 (defn- project
-  "Applies a projection node based on a map function"
-  [ast data guard mapfn options]
-  (let [lhs (visit (get-in ast [1 1]) data options)]
+  "Applies a projection node based on a map and guard function"
+  [ast data guard mapfn opts]
+  (let [lhs (visit (nth ast 1) data opts)]
     (if-let [guarded (guard lhs)]
       (filter
         #(not (nil? %))
         (map mapfn guarded)))))
 
-(defmethod visit :value-projection [ast data options]
-  "Applies a value-project only to maps"
-  (let [rexp (get-in ast [2 1])]
+(defmethod visit :object-projection [ast data opts]
+  (let [rhs (nth ast 2)]
     (project ast
              data
              #(when (map? %) %)
-             #(visit rexp (get % 1) options)
-             options)))
+             #(visit rhs (get % 1) opts)
+             opts)))
 
-(defmethod visit :index-projection [ast data options]
-  "Applies an index-projection to vectors or lists"
-  (let [rexp (get-in ast [2 1])]
+(defmethod visit :array-projection [ast data opts]
+  (let [rhs (nth ast 2)]
     (project ast
              data
              #(when (sequential? %) %)
-             #(visit rexp % options)
-             options)))
+             #(visit rhs % opts)
+             opts)))
 
-(defmethod visit :filter-projection [ast data options]
-  "Applies a filter-projection to vectors or lists"
-  (let [condition (get ast 2)
-        rexp (get-in ast [3 1])]
+(defmethod visit :filter-projection [ast data opts]
+  (let [condition (nth ast 2) rexp (nth ast 3)]
     (project ast
              data
              #(when (sequential? %) %)
-             #(when (visit condition % options)
-                (visit rexp % options))
-             options)))
+             #(when (visit condition % opts) (visit rexp % opts))
+             opts)))
 
 (defn- flatten-data
   "Takes a sequence of data and flattens arrays up one level if they are
@@ -114,49 +107,46 @@
   [x]
   (mapcat (fn [x] (if (sequential? x) x (list x))) x))
 
-(defmethod visit :flatten-projection [ast data options]
+(defmethod visit :flatten-projection [ast data opts]
   "Creates a projection that evaluates the left expression, flattens it, then
   passes each flattened value to the right expression."
-    (let [rexp (get-in ast [2 1])]
+    (let [rhs (nth ast 2)]
       (project ast
                data
                #(when (sequential? %) (flatten %))
-               #(visit rexp % options)
-               options)))
+               #(visit rhs % opts)
+               opts)))
 
-(defmethod visit :multi-select-hash [ast data options]
-  "Creates an array-map based on a list of key-value pair expressions"
+(defmethod visit :multi-select-hash [ast data opts]
+  "Creates an array-map based on a list of key-value pair expressions.
+  array-map is used to ensure that the map is ordered based on insertion."
   (apply
     array-map
     (flatten
       (map
         (fn [node]
-          [(get-in node [1 1 1] node)
-           (visit (get-in node [2 1]) data options)])
+          [(get-in node [1 1]) (visit (nth node 2) data opts)])
         (rest ast)))))
 
-(defmethod visit :multi-select-list [ast data options]
+(defmethod visit :multi-select-list [ast data opts]
   "Creates a vector based on a list of expressions"
-  (map (fn [node] (visit node data options)) (rest ast)))
+  (map (fn [node] (visit node data opts)) (rest ast)))
 
-(defmethod visit :function-expr [ast data options]
+(defmethod visit :function-expr [ast data opts]
   "Invokes a function with a list of arguments using the :fnprovided found
-  in the options map."
-  ((:fnprovider options)
+  in the opts map."
+  ((:fnprovider opts)
     (get-in ast [1 1])
-    (map (fn [node] (visit node data options)) (rest (nth ast 2)))))
+    (map (fn [node] (visit node data opts)) (rest (nth ast 2)))))
 
-(defmethod visit :expr-type [ast data options]
+(defmethod visit :expr-type [ast data opts]
   "Returns a function that can be invoked to provide an expression result"
-  (fn [with-data]
-    (visit (nth ast 1) with-data options)))
+  (fn [with-data] (visit (nth ast 1) with-data opts)))
 
 (defn interpret
   "Interprets the given AST with the provided data. Accepts an AST in
   hiccup format, the data to interpret, and the following keyword arguments
-
-  :fnprovider Function invoked to handle JMESPath function calls. This
-              keyword is required."
-  [ast data &{:as options}]
-  {:pre [(contains? options :fnprovider)]}
-  (visit (first ast) data options))
+  :fnprovider (required) fn invoked to handle JMESPath function calls."
+  [ast data &{:as opts}]
+  {:pre [(contains? opts :fnprovider)]}
+  (visit ast data opts))
