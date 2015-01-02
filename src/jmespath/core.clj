@@ -19,6 +19,9 @@
     :flatten-projection
     :filter-projection})
 
+(defn- is-projection [node]
+  (projection-nodes (get node 0)))
+
 (defn- xf-expression
   "Adds a right/left nodes to projections if needed."
   [node]
@@ -61,9 +64,6 @@
 (defn- xf-csv [node-name]
   (fn [& nodes]
     (into [node-name] (list-with-csv nodes))))
-
-(defn- is-projection [node]
-  (projection-nodes (get node 0)))
 
 (defn- right-projection [left right]
   (conj right left [:current-node]))
