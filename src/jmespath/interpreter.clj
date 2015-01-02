@@ -69,36 +69,33 @@
                                ((resolve (symbol type)) left right)))))))
 
 (defn- project
-  "Applies a projection node based on a map and guard function"
-  [ast data guard mapfn opts]
-  (let [lhs (visit (nth ast 1) data opts)]
+  "Applies a projection node based on a map function"
+  [left-node guard mapfn data opts]
+  (let [lhs (visit left-node data opts)]
     (if-let [guarded (guard lhs)]
-      (filter
-        #(not (nil? %))
-        (map mapfn guarded)))))
+      (filter #(not (nil? %)) (map mapfn guarded)))))
 
 (defmethod visit :object-projection [ast data opts]
   (let [rhs (nth ast 2)]
-    (project ast
-             data
+    (project (nth ast 1)
              #(when (map? %) %)
              #(visit rhs (get % 1) opts)
+             data
              opts)))
 
 (defmethod visit :array-projection [ast data opts]
-  (let [rhs (nth ast 2)]
-    (project ast
-             data
-             #(when (sequential? %) %)
-             #(visit rhs % opts)
-             opts)))
+  (project (nth ast 1)
+           #(when (sequential? %) %)
+           #(visit (nth ast 2) % opts)
+           data
+           opts))
 
 (defmethod visit :filter-projection [ast data opts]
-  (let [condition (nth ast 2) rexp (nth ast 3)]
-    (project ast
-             data
+  (let [condition (nth ast 1) rhs (nth ast 3)]
+    (project (nth ast 2)
              #(when (sequential? %) %)
-             #(when (visit condition % opts) (visit rexp % opts))
+             #(when (visit condition % opts) (visit rhs % opts))
+             data
              opts)))
 
 (defn- flatten-data
@@ -110,12 +107,12 @@
 (defmethod visit :flatten-projection [ast data opts]
   "Creates a projection that evaluates the left expression, flattens it, then
   passes each flattened value to the right expression."
-    (let [rhs (nth ast 2)]
-      (project ast
-               data
-               #(when (sequential? %) (flatten %))
-               #(visit rhs % opts)
-               opts)))
+  (let [rhs (nth ast 2)]
+    (project (nth ast 1)
+             #(when (sequential? %) (flatten %))
+             #(visit rhs % opts)
+             data
+             opts)))
 
 (defmethod visit :multi-select-hash [ast data opts]
   "Creates an array-map based on a list of key-value pair expressions.

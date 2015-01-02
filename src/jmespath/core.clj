@@ -19,6 +19,17 @@
     :flatten-projection
     :filter-projection})
 
+(defn- xf-expression
+  "Adds a right/left nodes to projections if needed."
+  [node]
+  (if (not (is-projection node))
+    node
+    (let [c (count node)]
+      (cond
+        (= 2 c) (conj node [:current-node])
+        (= 1 c) (conj node [:current-node] [:current-node])
+        :default node))))
+
 (defn- xf-json
   "JSON decodes the provided characters, adding quotes if necessary."
   [chars]
@@ -63,7 +74,7 @@
     (= :current-node (get-in left [2 0])) (conj (vec (drop-last left)) right)
     :default
       (let [last (last left)]
-        (conj (vec (drop-last left)) [:sub-expression last right]))))
+        (conj (vec (drop-last left)) [:subexpression last right]))))
 
 (defn- xf-parse-tree
   "Transforms the given Instaparse tree to make it nicer to work with"
@@ -74,11 +85,7 @@
      :DQUOTE str
      :unescaped-char str
      :unescaped-literal str
-     :expression (fn [node]
-       ; Adds a right node to projections if needed.
-       (if (and (is-projection node) (= 2 (count node)))
-         (conj node [:current-node])
-         node))
+     :expression xf-expression
      :escaped-literal (comp str #(replace % "\\" ""))
      :index-expression (fn [& s] [:index-expression (get (vec s) 1)])
      :literal xf-literal
