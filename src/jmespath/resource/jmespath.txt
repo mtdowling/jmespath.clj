@@ -1,47 +1,59 @@
-expr              = terminating / root-expr / wildcard-values
-root-expr         = non-test / not / binary-expr
-non-test          = subexpr / index / flatten /
-                     wildcard-index / filter /
-                     identifier / current-node / literal /
-                     root-multi-list / multi-hash /
-                     function / group / slice
-terminating       = pipe / or / and
-terminating-rhs   = root-expr / wildcard-values / or / and
-pipe              = expr "|" terminating-rhs
-or                = (root-expr / wildcard-values) "||" terminating-rhs
-and               = (root-expr / wildcard-values) "&&" terminating-rhs
-wildcard-values   = "*"
+expr              = terminal / non-terminal
+root-expr         = non-test / not / comparison
+non-test          = subexpr / index / flatten / wildcard-index / filter /
+                     identifier / current-node / literal / root-multi-list /
+                     multi-hash / function / group / slice
 group             = "(" expr ")"
-subexpr           = (non-test / wildcard-values) (object-predicate / array-predicate)
-object-predicate  = "." (identifier /
-                         multi-list /
-                         multi-hash /
-                         function /
-                         wildcard-values)
-array-predicate   = index / slice / wildcard-index / flatten / filter
+
+; Terminal expressions stop projections. "&&" binds more tightly than "||".
+; "||" binds more tightly than "|".
+terminal          = pipe / or / and
+non-terminal      = root-expr / wildcard-values
+pipe              = expr "|" (non-terminal / or / and)
+or                = (non-terminal / and) "||" (non-terminal / or / and)
+and               = non-terminal "&&" (non-terminal / and)
+
+; subexpr handles most rules, including a.b, a[0], a[::-1], a.*, etc.
+subexpr           = object-subexpr / array-subexpr
+object-subexpr    = (subexpr / index / flatten / wildcard-index /
+                     filter / identifier / current-node / literal /
+                     multi-hash / function / group / slice / wildcard-values)
+                     "." (identifier / multi-list / multi-hash / function /
+                          wildcard-values)
+array-subexpr     = (subexpr / index / flatten / wildcard-index / filter /
+                     identifier / current-node / literal / root-multi-list /
+                     function / group / slice / wildcard-values)
+                     (index / slice / wildcard-index / flatten / filter)
+
 index             = "[" number "]"
 slice             = "[" *number ":" *number *(":" *number) "]"
 wildcard-index    = "[*]"
 flatten           = "[]"
-filter            = "[?" (not / non-test / terminating / binary-expr) "]"
+
+filter            = "[?" (not / non-test / terminal / comparison) "]"
 not               = "!" (non-test / not)
-binary-expr       = expr comparator (non-test / wildcard-values)
+comparison        = expr comparator (non-test / not / wildcard-values)
 comparator        = "<" / "<=" / "==" / ">=" / ">" / "!="
-root-multi-list   = "[" (root-expr / multiple-values / terminating) "]"
+
+root-multi-list   = "[" (root-expr / multiple-values / terminal) "]"
 multi-list        = "[" (expr / multiple-values) "]"
 multiple-values   = expr 1*( "," expr )
 multi-hash        = "{" ( keyval *( "," keyval ) ) "}"
 keyval            = identifier ":" expr
+
 function          = unquoted-string function-args
 function-args     = "(" *1(function-arg *("," function-arg)) ")"
 function-arg      = expr / expref
-current-node      = "@"
+
 expref            = "&" expr
+wildcard-values   = "*"
+current-node      = "@"
+
+number            = *"-" 1*DIGIT
 literal           = "`" 1*(unescaped-literal / escaped-literal) "`"
 unescaped-literal = %x20-59 / %x61-10FFFF
                      ; Any character after and including space, but not `
 escaped-literal   = escaped-char / (escape "`")
-number            = *"-" 1*DIGIT
 identifier        = unquoted-string / quoted-string
 unquoted-string   = (ALPHA / "_") *(DIGIT / ALPHA / "_")
 quoted-string     = DQUOTE 1*(unescaped-char / escaped-char) DQUOTE

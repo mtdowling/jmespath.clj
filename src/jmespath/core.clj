@@ -91,6 +91,11 @@
      :escaped-literal str
      :escape (constantly "")
      :non-test identity
+     :root-expr identity
+     :non-terminal identity
+     :terminal identity
+     :terminal-rhs identity
+     :function-arg identity
      :expr xf-expr
      :index (fn [& s] [:index (get (vec s) 1)])
      :literal xf-literal
@@ -101,29 +106,26 @@
      :and (xf-skip-middle :and)
      :pipe (xf-skip-middle :pipe)
      :root-multi-list xf-multi-list
-     :root-expr identity
-     :object-predicate (fn [_ pred] pred)
-     :array-predicate identity
-     :expref (fn [_ t] [:expref t])
+     :object-subexpr (xf-skip-middle :subexpr)
+     :array-subexpr (xf-skip-middle :subexpr)
      :keyval (xf-skip-middle :keyval)
+     :expref (fn [_ t] [:expref t])
      :multi-list xf-multi-list
      :multi-hash (xf-csv :multi-hash)
      :function-args (xf-csv :function-args)
-     :function-arg identity
      :wildcard-values (constantly [:object-projection])
      :wildcard-index (constantly [:array-projection])
      :flatten (constantly [:flatten-projection])
      :current-node (constantly [:current-node])
-     :terminating identity
-     :terminating-rhs identity
      :group (fn [_ expr _] expr)
      :filter xf-filter
      :not (fn [_ expr] [:not expr])
-     :subexpr (fn [left right]
-       (cond
-         (is-projection right) (right-projection left right)
-         (is-projection left) (left-projection left right)
-         :else [:subexpr left right]))}
+     :subexpr (fn [node]
+       (let [left (nth node 1) right (nth node 2)]
+         (cond
+           (is-projection right) (right-projection left right)
+           (is-projection left) (left-projection left right)
+           :else [:subexpr left right])))}
     tree))
 
 (defn parse
