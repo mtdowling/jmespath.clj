@@ -56,21 +56,21 @@
           (cheshire/decode (nth ast 1))
           (catch JsonParseException e (nth ast 1)))))))
 
-(defmethod visit :binary-condition [ast data opts]
+(defmethod visit :binary-expression [ast data opts]
   "Returns the result of a binary condition"
-  (let [lhs (get ast 1)
-        type (get-in ast [2 1])
-        rhs (get ast 3)]
+  (let [type (get-in ast [2 1])
+        left (visit (get ast 1) data opts)
+        right (visit (get ast 3) data opts)]
     (cond
-      (= type "==") (= (visit lhs data opts) (visit rhs data opts))
-      (= type "!=") (not= (visit lhs data opts) (visit rhs data opts))
-      (= type "&&") (and (visit lhs data opts) (visit rhs data opts))
-      (= type "||") (or (visit lhs data opts) (visit rhs data opts))
+      (= type "==") (= left right)
+      (= type "!=") (not= left right)
       ; Other symbols can be used literally (e.g., <, >, <=, >=)
-      :default (let [left (visit lhs data opts)
-                     right (visit rhs data opts)]
-                 (boolean (and (and (number? left) (number? right))
-                               ((resolve (symbol type)) left right)))))))
+      :default
+        (boolean (and (and (number? left) (number? right))
+                      ((resolve (symbol type)) left right))))))
+
+(defmethod visit :not [ast data opts]
+  (not (visit (nth ast 1) data opts)))
 
 (defn- project
   "Applies a projection node based on a map function"
