@@ -22,6 +22,9 @@
 (defn- is-projection [node]
   (projection-nodes (get node 0)))
 
+(defn- xf-skip-middle [node]
+  (fn [lhs _ rhs] [node lhs rhs]))
+
 (defn- xf-expression
   "Adds a right/left nodes to projections if needed."
   [node]
@@ -85,15 +88,18 @@
      :DQUOTE str
      :unescaped-char str
      :unescaped-literal str
+     :escaped-literal str
+     :escape (constantly "")
+     :non-test identity
      :expression xf-expression
-     :escaped-literal (comp str #(replace % "\\" ""))
      :index-expression (fn [& s] [:index-expression (get (vec s) 1)])
      :literal xf-literal
      :number (comp read-string str)
      :quoted-string (fn [& s] (xf-json s))
      :unquoted-string (comp read-string str)
-     :or-expression (fn [l _ r] [:or-expression l r])
-     :pipe-expression (fn [l _ r] [:pipe-expression l r])
+     :or-expression (xf-skip-middle :or-expression)
+     :and-expression (xf-skip-middle :and-expression)
+     :pipe-expression (xf-skip-middle :pipe-expression)
      :root-multi-select-list xf-multi-select-list
      :root-expression identity
      :object-predicate (fn [_ pred] pred)
@@ -102,16 +108,17 @@
      :keyval-expr (fn [k _ v] [:keyval-expr k v])
      :multi-select-list xf-multi-select-list
      :multi-select-hash (xf-csv :multi-select-hash)
-     :one-or-more-args (xf-csv :one-or-more-args)
+     :function-args (xf-csv :function-args)
+     :function-arg identity
      :wildcard-values (constantly [:object-projection])
      :wildcard-index (constantly [:array-projection])
      :flatten (constantly [:flatten-projection])
      :current-node (constantly [:current-node])
-     :no-args (constantly [:no-args])
      :terminating-expression identity
      :terminating-rhs identity
      :group (fn [_ expr _] expr)
      :filter-expression xf-filter
+     :not (fn [_ expr] [:not expr])
      :subexpression (fn [left right]
        (cond
          (is-projection right) (right-projection left right)

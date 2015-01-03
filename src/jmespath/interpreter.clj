@@ -38,6 +38,10 @@
   (or (visit (get ast 1) data opts)
       (visit (get ast 2) data opts)))
 
+(defmethod visit :and-expression [ast data opts]
+  (and (visit (get ast 1) data opts)
+       (visit (get ast 2) data opts)))
+
 (defmethod visit :literal [ast data opts]
   "Visits a literal node and JSON decodes the value if it looks like JSON"
   (let [v (nth ast 1)]
