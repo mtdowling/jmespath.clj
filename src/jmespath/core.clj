@@ -1,5 +1,5 @@
 (ns jmespath.core
-  "Parses and evaluated JMESPath expression over Clojure data structures."
+  "Parses and evaluated JMESPath expr over Clojure data structures."
   {:author "Michael Dowling"}
   (:require [jmespath.functions :refer (invoke)]
             [jmespath.interpreter :refer (interpret)]
@@ -25,7 +25,7 @@
 (defn- xf-skip-middle [node]
   (fn [lhs _ rhs] [node lhs rhs]))
 
-(defn- xf-expression
+(defn- xf-expr
   "Adds a right/left nodes to projections if needed."
   [node]
   (if (not (is-projection node))
@@ -50,13 +50,13 @@
   [& chars]
   [:literal (->> chars drop-last rest (apply str) xf-json)])
 
-(defn- xf-multi-select-list
-  "Normalizes multi-select-lists that have one or multiple values."
+(defn- xf-multi-list
+  "Normalizes multi-lists that have one or multiple values."
   [& nodes]
   (let [nodes (->> nodes (drop 1) (drop-last) vec)]
     (if (= :multiple-values (get-in nodes [0 0]))
-      (into [:multi-select-list] (->> nodes first rest (take-nth 2)))
-      (into [:multi-select-list] nodes))))
+      (into [:multi-list] (->> nodes first rest (take-nth 2)))
+      (into [:multi-list] nodes))))
 
 (defn- xf-filter [& nodes]
   (->> nodes (drop 1) (drop-last) (into [:filter-projection])))
@@ -77,7 +77,7 @@
     (= :current-node (get-in left [2 0])) (conj (vec (drop-last left)) right)
     :default
       (let [last (last left)]
-        (conj (vec (drop-last left)) [:subexpression last right]))))
+        (conj (vec (drop-last left)) [:subexpr last right]))))
 
 (defn- xf-parse-tree
   "Transforms the given Instaparse tree to make it nicer to work with"
@@ -91,45 +91,45 @@
      :escaped-literal str
      :escape (constantly "")
      :non-test identity
-     :expression xf-expression
-     :index-expression (fn [& s] [:index-expression (get (vec s) 1)])
+     :expr xf-expr
+     :index (fn [& s] [:index (get (vec s) 1)])
      :literal xf-literal
      :number (comp read-string str)
      :quoted-string (fn [& s] (xf-json s))
      :unquoted-string (comp read-string str)
-     :or-expression (xf-skip-middle :or-expression)
-     :and-expression (xf-skip-middle :and-expression)
-     :pipe-expression (xf-skip-middle :pipe-expression)
-     :root-multi-select-list xf-multi-select-list
-     :root-expression identity
+     :or (xf-skip-middle :or)
+     :and (xf-skip-middle :and)
+     :pipe (xf-skip-middle :pipe)
+     :root-multi-list xf-multi-list
+     :root-expr identity
      :object-predicate (fn [_ pred] pred)
      :array-predicate identity
-     :expression-type (fn [_ t] [:expression-type t])
-     :keyval-expr (fn [k _ v] [:keyval-expr k v])
-     :multi-select-list xf-multi-select-list
-     :multi-select-hash (xf-csv :multi-select-hash)
+     :expref (fn [_ t] [:expref t])
+     :keyval (xf-skip-middle :keyval)
+     :multi-list xf-multi-list
+     :multi-hash (xf-csv :multi-hash)
      :function-args (xf-csv :function-args)
      :function-arg identity
      :wildcard-values (constantly [:object-projection])
      :wildcard-index (constantly [:array-projection])
      :flatten (constantly [:flatten-projection])
      :current-node (constantly [:current-node])
-     :terminating-expression identity
+     :terminating identity
      :terminating-rhs identity
      :group (fn [_ expr _] expr)
-     :filter-expression xf-filter
+     :filter xf-filter
      :not (fn [_ expr] [:not expr])
-     :subexpression (fn [left right]
+     :subexpr (fn [left right]
        (cond
          (is-projection right) (right-projection left right)
          (is-projection left) (left-projection left right)
-         :else [:subexpression left right]))}
+         :else [:subexpr left right]))}
     tree))
 
 (defn parse
-  "Parses a JMESPath expression into an AST. Accepts an expression as a
+  "Parses a JMESPath expr into an AST. Accepts an expr as a
   string and returns a sequence of hiccup data. Throws an
-  IllegalArgumentException if the expression fails to parse."
+  IllegalArgumentException if the expr fails to parse."
   [exp]
   (let [tree (parser exp)]
     (if (insta/failure? tree)
@@ -137,17 +137,14 @@
       (->> exp parser xf-parse-tree))))
 
 (defn search
-  "Returns data from the input that matches the provided JMESPath expression.
-  Accepts an expression as a string, the data to search, and an optional list
+  "Returns data from the input that matches the provided JMESPath expr.
+  Accepts an expr as a string, the data to search, and an optional list
   of keyword arguments:
-
   :fnprovider Function that accepts a function name and sequence of arguments
               and returns the result of invoking the function. If no value is
               provided, then the default jmespath.function/invoke multimethod
               is utilized.
-
-  If the provided expression is invalid, and IllegalArgumentException is
-  thrown."
+  If the provided expr is invalid, an IllegalArgumentException is thrown."
   [expr data &{:as options}]
   (interpret
     (parse expr)

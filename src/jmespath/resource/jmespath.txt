@@ -1,75 +1,60 @@
-expression              = terminating-expression /
-                           root-expression /
-                           wildcard-values
-root-expression         = non-test / not / binary-expression
-non-test                = subexpression / index-expression / flatten /
-                           wildcard-index / filter-expression /
-                           identifier / current-node / literal /
-                           root-multi-select-list / multi-select-hash /
-                           function-expression / group / slice-expression
-terminating-expression  = pipe-expression / or-expression / and-expression
-terminating-rhs         = root-expression /
-                           wildcard-values /
-                           or-expression /
-                           and-expression
-pipe-expression         = expression "|" terminating-rhs
-or-expression           = (root-expression / wildcard-values) "||" terminating-rhs
-and-expression          = (root-expression / wildcard-values) "&&" terminating-rhs
-wildcard-values         = "*"
-group                   = "(" expression ")"
-subexpression           = (non-test / wildcard-values)
-                           (object-predicate / array-predicate)
-object-predicate        = "." ( identifier /
-                                multi-select-list /
-                                multi-select-hash /
-                                function-expression /
-                                wildcard-values )
-array-predicate         = index-expression /
-                           slice-expression /
-                           wildcard-index /
-                           flatten /
-                           filter-expression
-index-expression        = "[" number "]"
-slice-expression        = "[" [number] ":" [number] [ ":" [number] ] "]"
-wildcard-index          = "[*]"
-flatten                 = "[]"
-filter-expression       = "[?" (not /
-                                non-test /
-                                terminating-expression /
-                                binary-expression) "]"
-not                     = "!" (non-test / not)
-binary-expression       = expression operator (non-test / wildcard-values)
-operator                = "<" / "<=" / "==" / ">=" / ">" / "!="
-root-multi-select-list  = "[" (root-expression /
-                               multiple-values /
-                               terminating-expression) "]"
-multi-select-list       = "[" (expression / multiple-values) "]"
-multiple-values         = expression 1*( "," expression )
-multi-select-hash       = "{" ( keyval-expr *( "," keyval-expr ) ) "}"
-keyval-expr             = identifier ":" expression
-function-expression     = unquoted-string function-args
-function-args           = "(" [function-arg *("," function-arg)] ")"
-function-arg            = expression / expression-type
-current-node            = "@"
-expression-type         = "&" expression
-literal                 = "`" 1*(unescaped-literal / escaped-literal) "`"
-unescaped-literal       = %x20-59 / %x61-10FFFF
-                          ; Any character after and including space, but not `
-escaped-literal         = escaped-char / (escape "`")
-number                  = ["-"] 1*DIGIT
-identifier              = unquoted-string / quoted-string
-unquoted-string         = (ALPHA / "_") *(DIGIT / ALPHA / "_")
-quoted-string           = DQUOTE 1*(unescaped-char / escaped-char) DQUOTE
-unescaped-char          = %x20-21 / %x23-5B / %x5D-10FFFF
-                           ; Any character other than "\"
-escape                  = %x5C ; "\"
-escaped-char            = escape (
-                           %x22 /          ; "    quotation mark  U+0022
-                           %x5C /          ; \    reverse solidus U+005C
-                           %x2F /          ; /    solidus         U+002F
-                           %x62 /          ; b    backspace       U+0008
-                           %x66 /          ; f    form feed       U+000C
-                           %x6E /          ; n    line feed       U+000A
-                           %x72 /          ; r    carriage return U+000D
-                           %x74 /          ; t    tab             U+0009
-                           %x75 4HEXDIG )  ; uXXXX                U+XXXX
+expr              = terminating / root-expr / wildcard-values
+root-expr         = non-test / not / binary-expr
+non-test          = subexpr / index / flatten /
+                     wildcard-index / filter /
+                     identifier / current-node / literal /
+                     root-multi-list / multi-hash /
+                     function / group / slice
+terminating       = pipe / or / and
+terminating-rhs   = root-expr / wildcard-values / or / and
+pipe              = expr "|" terminating-rhs
+or                = (root-expr / wildcard-values) "||" terminating-rhs
+and               = (root-expr / wildcard-values) "&&" terminating-rhs
+wildcard-values   = "*"
+group             = "(" expr ")"
+subexpr           = (non-test / wildcard-values) (object-predicate / array-predicate)
+object-predicate  = "." (identifier /
+                         multi-list /
+                         multi-hash /
+                         function /
+                         wildcard-values)
+array-predicate   = index / slice / wildcard-index / flatten / filter
+index             = "[" number "]"
+slice             = "[" *number ":" *number *(":" *number) "]"
+wildcard-index    = "[*]"
+flatten           = "[]"
+filter            = "[?" (not / non-test / terminating / binary-expr) "]"
+not               = "!" (non-test / not)
+binary-expr       = expr comparator (non-test / wildcard-values)
+comparator        = "<" / "<=" / "==" / ">=" / ">" / "!="
+root-multi-list   = "[" (root-expr / multiple-values / terminating) "]"
+multi-list        = "[" (expr / multiple-values) "]"
+multiple-values   = expr 1*( "," expr )
+multi-hash        = "{" ( keyval *( "," keyval ) ) "}"
+keyval            = identifier ":" expr
+function          = unquoted-string function-args
+function-args     = "(" *1(function-arg *("," function-arg)) ")"
+function-arg      = expr / expref
+current-node      = "@"
+expref            = "&" expr
+literal           = "`" 1*(unescaped-literal / escaped-literal) "`"
+unescaped-literal = %x20-59 / %x61-10FFFF
+                     ; Any character after and including space, but not `
+escaped-literal   = escaped-char / (escape "`")
+number            = *"-" 1*DIGIT
+identifier        = unquoted-string / quoted-string
+unquoted-string   = (ALPHA / "_") *(DIGIT / ALPHA / "_")
+quoted-string     = DQUOTE 1*(unescaped-char / escaped-char) DQUOTE
+unescaped-char    = %x20-21 / %x23-5B / %x5D-10FFFF
+                     ; Any character other than "\"
+escape            = %x5C             ; "\"
+escaped-char      = escape (
+                     %x22 /          ; "    quotation mark  U+0022
+                     %x5C /          ; \    reverse solidus U+005C
+                     %x2F /          ; /    solidus         U+002F
+                     %x62 /          ; b    backspace       U+0008
+                     %x66 /          ; f    form feed       U+000C
+                     %x6E /          ; n    line feed       U+000A
+                     %x72 /          ; r    carriage return U+000D
+                     %x74 /          ; t    tab             U+0009
+                     %x75 4HEXDIG )  ; uXXXX                U+XXXX

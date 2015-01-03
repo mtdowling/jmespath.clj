@@ -16,7 +16,7 @@
     (let [key (get ast 1)]
       (or (data key) (data (keyword key))))))
 
-(defmethod visit :index-expression [ast data opts]
+(defmethod visit :index [ast data opts]
   "Returns the nth value of a sequence, or nil"
   (when (sequential? data)
     (nth data (get ast 1))))
@@ -29,16 +29,16 @@
 
 (defmethod visit :current-node [ast data opts] data)
 
-(defmethod visit :subexpression [ast data opts] (subexpr ast data opts))
+(defmethod visit :subexpr [ast data opts] (subexpr ast data opts))
 
-(defmethod visit :pipe-expression [ast data opts]
+(defmethod visit :pipe [ast data opts]
   (subexpr ast data opts))
 
-(defmethod visit :or-expression [ast data opts]
+(defmethod visit :or [ast data opts]
   (or (visit (get ast 1) data opts)
       (visit (get ast 2) data opts)))
 
-(defmethod visit :and-expression [ast data opts]
+(defmethod visit :and [ast data opts]
   (and (visit (get ast 1) data opts)
        (visit (get ast 2) data opts)))
 
@@ -56,7 +56,7 @@
           (cheshire/decode (nth ast 1))
           (catch JsonParseException e (nth ast 1)))))))
 
-(defmethod visit :binary-expression [ast data opts]
+(defmethod visit :binary-expr [ast data opts]
   "Returns the result of a binary condition"
   (let [type (get-in ast [2 1])
         left (visit (get ast 1) data opts)
@@ -118,7 +118,7 @@
              data
              opts)))
 
-(defmethod visit :multi-select-hash [ast data opts]
+(defmethod visit :multi-hash [ast data opts]
   "Creates an array-map based on a list of key-value pair expressions.
   array-map is used to ensure that the map is ordered based on insertion."
   (apply
@@ -129,18 +129,18 @@
           [(get-in node [1 1]) (visit (nth node 2) data opts)])
         (rest ast)))))
 
-(defmethod visit :multi-select-list [ast data opts]
+(defmethod visit :multi-list [ast data opts]
   "Creates a vector based on a list of expressions"
   (map (fn [node] (visit node data opts)) (rest ast)))
 
-(defmethod visit :function-expr [ast data opts]
+(defmethod visit :function [ast data opts]
   "Invokes a function with a list of arguments using the :fnprovided found
   in the opts map."
   ((:fnprovider opts)
     (get-in ast [1 1])
     (map (fn [node] (visit node data opts)) (rest (nth ast 2)))))
 
-(defmethod visit :expr-type [ast data opts]
+(defmethod visit :expref [ast data opts]
   "Returns a function that can be invoked to provide an expression result"
   (fn [with-data] (visit (nth ast 1) with-data opts)))
 
