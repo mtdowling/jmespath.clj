@@ -41,9 +41,9 @@ multiple-values   = expr 1*( "," expr )
 multi-hash        = "{" ( keyval *( "," keyval ) ) "}"
 keyval            = identifier ":" expr
 
-function          = unquoted-string function-args
-function-args     = "(" *1(function-arg *("," function-arg)) ")"
-function-arg      = expr / expref
+function          = unquoted-string arg-list
+arg-list          = "(" *1(arg *("," arg)) ")"
+arg               = expr / expref
 
 expref            = "&" expr
 wildcard-values   = "*"

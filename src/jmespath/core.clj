@@ -95,7 +95,7 @@
      :non-terminal identity
      :terminal identity
      :terminal-rhs identity
-     :function-arg identity
+     :arg identity
      :expr xf-expr
      :index (fn [& s] [:index (get (vec s) 1)])
      :literal xf-literal
@@ -112,7 +112,7 @@
      :expref (fn [_ t] [:expref t])
      :multi-list xf-multi-list
      :multi-hash (xf-csv :multi-hash)
-     :function-args (xf-csv :function-args)
+     :arg-list (xf-csv :arg-list)
      :wildcard-values (constantly [:object-projection])
      :wildcard-index (constantly [:array-projection])
      :flatten (constantly [:flatten-projection])
