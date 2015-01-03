@@ -32,7 +32,7 @@ flatten           = "[]"
 
 filter            = "[?" (not / non-test / terminal / comparison) "]"
 not               = "!" (non-test / not)
-comparison        = expr comparator (non-test / not / wildcard-values)
+comparison        = non-terminal comparator (non-test / not / wildcard-values)
 comparator        = "<" / "<=" / "==" / ">=" / ">" / "!="
 
 root-multi-list   = "[" (root-expr / multiple-values / terminal) "]"
