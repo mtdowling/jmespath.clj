@@ -14,12 +14,12 @@
   then this method return nil."
   (when (map? data)
     (let [key (get ast 1)]
-      (or (data key) (data (keyword key))))))
+      (or (get data key nil) (get data (keyword key) nil)))))
 
 (defmethod visit :index [ast data opts]
   "Returns the nth value of a sequence, or nil"
   (when (sequential? data)
-    (nth data (get ast 1))))
+    (nth data (get ast 1) nil)))
 
 (defn- subexpr [ast data opts]
   "Returns the value of the right expression passed into the
@@ -56,7 +56,7 @@
           (cheshire/decode (nth ast 1))
           (catch JsonParseException e (nth ast 1)))))))
 
-(defmethod visit :binary-expr [ast data opts]
+(defmethod visit :comparison [ast data opts]
   "Returns the result of a binary condition"
   (let [type (get-in ast [2 1])
         left (visit (get ast 1) data opts)
@@ -136,9 +136,9 @@
 (defmethod visit :function [ast data opts]
   "Invokes a function with a list of arguments using the :fnprovided found
   in the opts map."
-  ((:fnprovider opts)
-    (get-in ast [1 1])
-    (map (fn [node] (visit node data opts)) (rest (nth ast 2)))))
+  (let [args (map (fn [node] (visit node data opts))
+                  (rest (nth ast 2)))]
+    ((:fnprovider opts) (nth ast 1) args)))
 
 (defmethod visit :expref [ast data opts]
   "Returns a function that can be invoked to provide an expression result"

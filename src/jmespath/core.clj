@@ -19,22 +19,15 @@
     :flatten-projection
     :filter-projection})
 
-(defn- is-projection [node]
+(defn- empty-projection [type]
+  "Creates an empty projection with current nodes and default metadata"
+  (constantly [type [:current-node] [:current-node]]))
+
+(defn- is-projection? [node]
   (projection-nodes (get node 0)))
 
 (defn- xf-skip-middle [node]
   (fn [lhs _ rhs] [node lhs rhs]))
-
-(defn- xf-expr
-  "Adds a right/left nodes to projections if needed."
-  [node]
-  (if (not (is-projection node))
-    node
-    (let [c (count node)]
-      (cond
-        (= 2 c) (conj node [:current-node])
-        (= 1 c) (conj node [:current-node] [:current-node])
-        :default node))))
 
 (defn- xf-json
   "JSON decodes the provided characters, adding quotes if necessary."
@@ -59,7 +52,10 @@
       (into [:multi-list] nodes))))
 
 (defn- xf-filter [& nodes]
-  (->> nodes (drop 1) (drop-last) (into [:filter-projection])))
+  (->> nodes
+       (drop 1)
+       (drop-last)
+       (into [:filter-projection [:current-node] [:current-node]])))
 
 (defn- list-with-csv [nodes]
   (->> nodes (drop 1) (drop-last) (take-nth 2) vec))
@@ -68,17 +64,50 @@
   (fn [& nodes]
     (into [node-name] (list-with-csv nodes))))
 
-(defn- right-projection [left right]
-  (conj right left [:current-node]))
+(defn- right-projection
+  "Replace the subexpr with a projection where the left node is replaced with
+  the subexpr left node, and the right node of the projection remains."
+  [left right]
+  (assoc right 1 left))
 
 (defn- left-projection [left right]
-  (cond
-    (= 1 (count left)) (conj left [:current-node] right)
-    (= :current-node (get-in left [2 0])) (conj (vec (drop-last left)) right)
-    :default
-      (let [last (last left)]
-        (conj (vec (drop-last left)) [:subexpr last right]))))
+  ; Replace the right node of the projection.
+  (let [right-node (nth left 2)
+        right-type (nth right-node 0)]
+    (if (= right-type :current-node)
+      ; Replace with the right node of the visited subexpr.
+      (assoc left 2 right)
+      ; Replace with a subexpr where the left node is the current right node of
+      ; the projection, and the right node is the right node of the subexpr.
+      (assoc left 2 [:subexpr right-node right]))))
 
+; Rewriting the tree for projections:
+;
+; 1. When a projection token node is encountered, a projection node is created
+;    in which the left and right children of the node are "@" nodes. This
+;    default structure allows projections to work correctly as root values that
+;    are not wrapped by subexpr nodes.
+; 2. When a subexpr is visited and the left node is a projection, return
+;    the projection, replacing the right node of the projection with a new
+;    node, adhering to the following rules:
+;    a. When the right node of the projection is a current node, replace the
+;       right node of the projection with the right node of the visited
+;       subexpr. For example, "*.b" is parsed as (. * b), which is
+;       rewritten as (. (* @ @) b) when the wildcard is visited, which is
+;       rewritten as (* @ b) when the subexpression is visited.
+;    b. Otherwise, replace the right node of the projection with a subexpr in
+;       which the left node is the current right node of the projection, and
+;       the right node is the right node of the visited subexpr. For example,
+;       "a.*.b" is parsed as (. (. a *) b). When the projection is visited, it
+;       is translated to (. (. a (* @ @)) b). When the "a" subexpr is visited,
+;       it is translated to (. (* a @) b) (see step #3). When the top subexpr
+;       is visited, the subexpr is converted to the final form, (* a b). This
+;       is because the right node of the projection is a current node, which
+;       causes it to be replaced with the right node of the visited subexpr.
+; 3. When a subexpr is visited and the right node is a projection (e.g., a.*),
+;    return a projection node in which the left node of the projection is the
+;    left node of the subexpr, and the right node continues to be the current
+;    node of the default projection form (i.e., (* a @)).
 (defn- xf-parse-tree
   "Transforms the given Instaparse tree to make it nicer to work with"
   [tree]
@@ -96,7 +125,8 @@
      :terminal identity
      :terminal-rhs identity
      :arg identity
-     :expr xf-expr
+     :expr identity
+     :identifier (fn [id] [:identifier (str id)])
      :index (fn [& s] [:index (get (vec s) 1)])
      :literal xf-literal
      :number (comp read-string str)
@@ -107,15 +137,16 @@
      :pipe (xf-skip-middle :pipe)
      :root-multi-list xf-multi-list
      :object-subexpr (xf-skip-middle :subexpr)
-     :array-subexpr (xf-skip-middle :subexpr)
+     :function (fn [name args] [:function (str name) args])
+     :array-subexpr (fn [lhs rhs] [:subexpr lhs rhs])
      :keyval (xf-skip-middle :keyval)
      :expref (fn [_ t] [:expref t])
      :multi-list xf-multi-list
      :multi-hash (xf-csv :multi-hash)
      :arg-list (xf-csv :arg-list)
-     :wildcard-values (constantly [:object-projection])
-     :wildcard-index (constantly [:array-projection])
-     :flatten (constantly [:flatten-projection])
+     :wildcard-values (empty-projection :object-projection)
+     :wildcard-index (empty-projection :array-projection)
+     :flatten (empty-projection :flatten-projection)
      :current-node (constantly [:current-node])
      :group (fn [_ expr _] expr)
      :filter xf-filter
@@ -123,8 +154,8 @@
      :subexpr (fn [node]
        (let [left (nth node 1) right (nth node 2)]
          (cond
-           (is-projection right) (right-projection left right)
-           (is-projection left) (left-projection left right)
+           (is-projection? left) (left-projection left right)
+           (is-projection? right) (right-projection left right)
            :else [:subexpr left right])))}
     tree))
 
@@ -144,7 +175,7 @@
   of keyword arguments:
   :fnprovider Function that accepts a function name and sequence of arguments
               and returns the result of invoking the function. If no value is
-              provided, then the default jmespath.function/invoke multimethod
+              provided, then the default jmespath.functions/invoke multimethod
               is utilized.
   If the provided expr is invalid, an IllegalArgumentException is thrown."
   [expr data &{:as options}]

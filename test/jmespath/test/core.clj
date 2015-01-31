@@ -43,15 +43,20 @@
          :result (get case "result")
          :error  (get case "error")})))))
 
+(defn do-result [result]
+  (if (instance? clojure.lang.LazySeq result)
+    (doall result)
+    result))
+
 (deftest passes-compliance
   (doseq [{:keys [file given expr result error]} (get-test-cases)]
     (testing (str file ": " expr)
       (try
-        (let [actual (jmespath/search expr given :doall true)]
+        (let [actual (do-result (jmespath/search expr given))]
           (is (nil? error)
               (str "Should have failed: " error))
           (is (= result actual)
-              (str "Expected " result ", but got " (apply str actual))))
+              (str "Expected " result ", but got " (str actual))))
         (catch Exception e
           (is (string? error)
               (str "Should not have failed: " e)))))))

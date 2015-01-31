@@ -7,7 +7,7 @@
             [instaparse.core :as insta]
             [cheshire.core :as cheshire]))
 
-(defmulti invoke (fn [fname _] fname))
+(defmulti invoke (fn [fname args] fname))
 
 (defmethod invoke "abs" [fname args]
   "Returns the absolute value of the provided argument."
