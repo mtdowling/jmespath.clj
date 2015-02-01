@@ -3,7 +3,7 @@
   (:require [jmespath.functions :refer (invoke)]
             [jmespath.interpreter :refer (interpret)]
             [instaparse.core :refer (transform)]
-            [cheshire.core :as cheshire]))
+            [cheshire.core :refer (parse-string)]))
 
 (def ^:private projection-nodes
   #{:object-projection
@@ -27,8 +27,8 @@
   (let [s (apply str chars)]
     ; JSON decode if it looks like JSON, otherwise add quotes then decode.
     (if (re-find #"(true|false|null)|(^[\[\"{])|(^\-?[0-9]*(\.[0-9]+)?([e|E][+|\-][0-9]+)?$)" s)
-      (cheshire/parse-string s true)
-      (cheshire/parse-string (str "\"" s "\"") true))))
+      (parse-string s true)
+      (parse-string (str "\"" s "\"") true))))
 
 (defn- xf-literal
   "Parses a literal by dropping '`' and safely parsing the inner-JSON value."
@@ -88,10 +88,12 @@
     {:ALPHA str
      :DIGIT str
      :DQUOTE str
+     :escaped-char str
      :unescaped-char str
-     :unescaped-literal str
      :escaped-literal str
-     :escape (constantly "")
+     :unescaped-literal str
+     :escape str
+     :char identity
      :non-test identity
      :root-expr identity
      :non-terminal identity
@@ -107,7 +109,6 @@
      :comparison (fn [l c r] [(nth c 0) l r])
      :identifier (fn [id] [:identifier (str id)])
      :index (fn [& s] [:index (get (vec s) 1)])
-     :literal xf-literal
      :number (comp read-string str)
      :quoted-string (fn [& s] (xf-json s))
      :unquoted-string (comp read-string str)

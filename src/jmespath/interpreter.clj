@@ -17,13 +17,13 @@
       (or (get data key nil) (get data (keyword key) nil)))))
 
 (defmethod visit :index [ast data opts]
-  "Returns the nth value of a sequence, or nil"
   (when (sequential? data)
-    (nth data (get ast 1) nil)))
+    (let [pos (get ast 1)]
+      (if (< pos 0)
+        (nth data (+ pos (count data)))
+        (nth data pos)))))
 
 (defn- subexpr [ast data opts]
-  "Returns the value of the right expression passed into the
-  left expression."
   (let [lhs (visit (get ast 1) data opts)]
     (visit (get ast 2) lhs opts)))
 
