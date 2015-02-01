@@ -56,19 +56,6 @@
           (cheshire/decode (nth ast 1))
           (catch JsonParseException e (nth ast 1)))))))
 
-(defmethod visit :comparison [ast data opts]
-  "Returns the result of a binary condition"
-  (let [type (get-in ast [2 1])
-        left (visit (get ast 1) data opts)
-        right (visit (get ast 3) data opts)]
-    (cond
-      (= type "==") (= left right)
-      (= type "!=") (not= left right)
-      ; Other symbols can be used literally (e.g., <, >, <=, >=)
-      :default
-        (boolean (and (and (number? left) (number? right))
-                      ((resolve (symbol type)) left right))))))
-
 (defmethod visit :not [ast data opts]
   (not (visit (nth ast 1) data opts)))
 
@@ -94,23 +81,11 @@
            data
            opts))
 
-(defmethod visit :filter-projection [ast data opts]
-  (let [condition (nth ast 1) rhs (nth ast 3)]
-    (project (nth ast 2)
-             #(when (sequential? %) %)
-             #(when (visit condition % opts) (visit rhs % opts))
-             data
-             opts)))
-
 (defn- flatten-data
-  "Takes a sequence of data and flattens arrays up one level if they are
-  sequential."
   [x]
   (mapcat (fn [x] (if (sequential? x) x (list x))) x))
 
 (defmethod visit :flatten-projection [ast data opts]
-  "Creates a projection that evaluates the left expression, flattens it, then
-  passes each flattened value to the right expression."
   (let [rhs (nth ast 2)]
     (project (nth ast 1)
              #(when (sequential? %) (flatten %))
@@ -119,8 +94,6 @@
              opts)))
 
 (defmethod visit :multi-hash [ast data opts]
-  "Creates an array-map based on a list of key-value pair expressions.
-  array-map is used to ensure that the map is ordered based on insertion."
   (apply
     array-map
     (flatten
@@ -130,19 +103,36 @@
         (rest ast)))))
 
 (defmethod visit :multi-list [ast data opts]
-  "Creates a vector based on a list of expressions"
   (map (fn [node] (visit node data opts)) (rest ast)))
 
 (defmethod visit :function [ast data opts]
-  "Invokes a function with a list of arguments using the :fnprovided found
-  in the opts map."
   (let [args (map (fn [node] (visit node data opts))
                   (rest (nth ast 2)))]
     ((:fnprovider opts) (nth ast 1) args)))
 
 (defmethod visit :expref [ast data opts]
-  "Returns a function that can be invoked to provide an expression result"
   (fn [with-data] (visit (nth ast 1) with-data opts)))
+
+(defmethod visit :filter-condition [ast data opts]
+  (when (visit (nth ast 1) data opts) data))
+
+(defn cmp? [fn ast data opts]
+  (let [lhs (visit (nth ast 1))
+        rhs (visit (nth ast 2))]
+    (boolean
+      (and (and (number? lhs) (number? rhs))
+           (fn lhs rhs)))))
+
+(defn- is-equal? [ast data opts]
+  (= (visit (nth ast 1) data opts)
+     (visit (nth ast 2) data opts)))
+
+(defmethod visit :eq [ast data opts] (is-equal? ast data opts))
+(defmethod visit :ne [ast data opts] (not (is-equal? ast data opts)))
+(defmethod visit :gt [ast data opts] (cmp? > ast data opts))
+(defmethod visit :gte [ast data opts] (cmp? >= ast data opts))
+(defmethod visit :lt [ast data opts] (cmp? < ast data opts))
+(defmethod visit :lte [ast data opts] (cmp? <= ast data opts))
 
 (defn interpret
   "Interprets the given AST with the provided data. Accepts an AST in

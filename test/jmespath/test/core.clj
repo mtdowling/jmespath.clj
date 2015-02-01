@@ -1,16 +1,9 @@
 (ns jmespath.test.core
-  [:require [clojure.test :refer :all]
+  (:import  [clojure.lang ExceptionInfo])
+  (:require [clojure.test :refer :all]
             [jmespath.core :as jmespath]
             [clojure.java.io :as io]
-            [cheshire.core :refer (parse-string)]])
-
-(deftest searches
-  (testing "Basic operations"
-    (is (= (jmespath/search "foo" {"foo" "bar"})))
-    (is (= '([:identifier "foo"]) (jmespath/parse "foo")))
-    (is (instance? clojure.lang.LazySeq
-                   (jmespath/search "[]" [1 2 3])))
-    (is (= [1 2] (jmespath/search "[]" [1 2] :doall true)))))
+            [cheshire.core :refer (parse-string)]))
 
 (defn- load-suite
   "Loads a JMESPath test suite"
@@ -57,6 +50,6 @@
               (str "Should have failed: " error))
           (is (= result actual)
               (str "Expected " result ", but got " (str actual))))
-        (catch Exception e
+        (catch ExceptionInfo e
           (is (string? error)
               (str "Should not have failed: " e)))))))
