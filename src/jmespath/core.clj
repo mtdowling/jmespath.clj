@@ -71,43 +71,27 @@
   (assoc right 1 left))
 
 (defn- left-projection [left right]
-  ; Replace the right node of the projection.
+  "Replace the subexpr with a projection that consumes the right node."
   (let [right-node (nth left 2)
         right-type (nth right-node 0)]
-    (if (= right-type :current-node)
-      ; Replace with the right node of the visited subexpr.
-      (assoc left 2 right)
-      ; Replace with a subexpr where the left node is the current right node of
-      ; the projection, and the right node is the right node of the subexpr.
-      (assoc left 2 [:subexpr right-node right]))))
+    (cond
+      ; When the right node is current-node, it means that it was a default
+      ; inserted node, so it can be replaced.
+      (= right-type :current-node)
+        (assoc left 2 right)
+      ; Replace the R node of the projection with the projection, but insert
+      ; L's right node into the projection's left node.
+      (is-projection? right)
+        (assoc left 2 (assoc right 1 right-node))
+      ; If the L node is a projection, then push the visited R node onto the
+      ; L node's R node (recursively if needed).
+      (is-projection? right-node)
+        (assoc left 2 (left-projection right-node right))
+      ; Replace with a subexpr where the L node is the current R node
+      ; of the projection, and the R node is the R node of the subexpr.
+      :default
+        (assoc left 2 [:subexpr right-node right]))))
 
-; Rewriting the tree for projections:
-;
-; 1. When a projection token node is encountered, a projection node is created
-;    in which the left and right children of the node are "@" nodes. This
-;    default structure allows projections to work correctly as root values that
-;    are not wrapped by subexpr nodes.
-; 2. When a subexpr is visited and the left node is a projection, return
-;    the projection, replacing the right node of the projection with a new
-;    node, adhering to the following rules:
-;    a. When the right node of the projection is a current node, replace the
-;       right node of the projection with the right node of the visited
-;       subexpr. For example, "*.b" is parsed as (. * b), which is
-;       rewritten as (. (* @ @) b) when the wildcard is visited, which is
-;       rewritten as (* @ b) when the subexpression is visited.
-;    b. Otherwise, replace the right node of the projection with a subexpr in
-;       which the left node is the current right node of the projection, and
-;       the right node is the right node of the visited subexpr. For example,
-;       "a.*.b" is parsed as (. (. a *) b). When the projection is visited, it
-;       is translated to (. (. a (* @ @)) b). When the "a" subexpr is visited,
-;       it is translated to (. (* a @) b) (see step #3). When the top subexpr
-;       is visited, the subexpr is converted to the final form, (* a b). This
-;       is because the right node of the projection is a current node, which
-;       causes it to be replaced with the right node of the visited subexpr.
-; 3. When a subexpr is visited and the right node is a projection (e.g., a.*),
-;    return a projection node in which the left node of the projection is the
-;    left node of the subexpr, and the right node continues to be the current
-;    node of the default projection form (i.e., (* a @)).
 (defn- xf-parse-tree
   "Transforms the given Instaparse tree to make it nicer to work with"
   [tree]
