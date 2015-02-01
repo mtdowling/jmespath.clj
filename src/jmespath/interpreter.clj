@@ -117,11 +117,10 @@
   (when (visit (nth ast 1) data opts) data))
 
 (defn cmp? [fn ast data opts]
-  (let [lhs (visit (nth ast 1))
-        rhs (visit (nth ast 2))]
-    (boolean
-      (and (and (number? lhs) (number? rhs))
-           (fn lhs rhs)))))
+  (let [lhs (visit (nth ast 1) data opts)
+        rhs (visit (nth ast 2) data opts)]
+    (boolean (and (and (number? lhs) (number? rhs))
+                  (fn lhs rhs)))))
 
 (defn- is-equal? [ast data opts]
   (= (visit (nth ast 1) data opts)

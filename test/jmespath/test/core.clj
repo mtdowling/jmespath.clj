@@ -1,5 +1,4 @@
 (ns jmespath.test.core
-  (:import  [clojure.lang ExceptionInfo])
   (:require [clojure.test :refer :all]
             [jmespath.core :as jmespath]
             [clojure.java.io :as io]
@@ -50,6 +49,6 @@
               (str "Should have failed: " error))
           (is (= result actual)
               (str "Expected " result ", but got " (str actual))))
-        (catch ExceptionInfo e
+        (catch Exception e
           (is (string? error)
               (str "Should not have failed: " e)))))))

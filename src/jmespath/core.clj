@@ -19,8 +19,8 @@
   [expr]
   (let [tree (parser expr)]
     (if (insta/failure? tree)
-      (throw (ex-info (instaparse.failure/pprint-failure tree)
-                      {:expr expr :err tree}))
+      (let [pp (with-out-str (instaparse.failure/pprint-failure tree))]
+        (throw (ex-info pp {:expr expr :err tree})))
       (->> expr parser rewrite))))
 
 (defn search
