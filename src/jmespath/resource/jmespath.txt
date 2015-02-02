@@ -92,7 +92,7 @@ current-node    = "@"
 
 number            = *"-" int
 literal           = "`" literal-value "`"
-literal-value     = json-value / non-json-value
+literal-value     = non-json-value / json-value
 non-json-value    = 1*( unescaped-literal / escaped-literal )
 unescaped-literal = %x20-5f / %x61-10FFFF ; Any character except "`"
 escaped-literal   = escaped-char / ( escape "`" )

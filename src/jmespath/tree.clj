@@ -21,20 +21,6 @@
 (defn- xf-skip-middle [node]
   (fn [lhs _ rhs] [node lhs rhs]))
 
-(defn- xf-json
-  "JSON decodes the provided characters, adding quotes if necessary."
-  [chars]
-  (let [s (apply str chars)]
-    ; JSON decode if it looks like JSON, otherwise add quotes then decode.
-    (if (re-find #"(true|false|null)|(^[\[\"{])|(^\-?[0-9]*(\.[0-9]+)?([e|E][+|\-][0-9]+)?$)" s)
-      (parse-string s true)
-      (parse-string (str "\"" s "\"") true))))
-
-(defn- xf-literal
-  "Parses a literal by dropping '`' and safely parsing the inner-JSON value."
-  [& chars]
-  [:literal (->> chars drop-last rest (apply str) xf-json)])
-
 (defn- xf-multi-list
   "Normalizes multi-lists that have one or multiple values."
   [& nodes]
@@ -106,11 +92,40 @@
      :array-subexpr-rhs identity
      :object-subexpr-lhs identity
      :object-subexpr-rhs identity
+
+     ; JSON parsing
+     :true (constantly true)
+     :false (constantly false)
+     :null (constantly nil)
+     :digit1-9 str
+     :int (comp read-string str)
+     :json-number (comp read-string str)
+     :json-value identity
+     :literal-value identity
+     :literal (fn [_ v _] [:literal v])
+     :non-json-value str
+     :exp str
+     :frac str
+     :member (fn [name _ value] [name value])
+     :array (fn [& nodes]
+              (->> nodes
+                   (drop 1)
+                   (drop-last)
+                   (take-nth 2)
+                   (vec)))
+     :object (fn [& nodes]
+               (->> nodes
+                    (drop 1)
+                    (drop-last)
+                    (take-nth 2)
+                    (flatten)
+                    (apply array-map)))
+
      :comparison (fn [l c r] [(nth c 0) l r])
      :identifier (fn [id] [:identifier (str id)])
      :index (fn [& s] [:index (get (vec s) 1)])
      :number (comp read-string str)
-     :quoted-string (fn [& s] (xf-json s))
+     :quoted-string (fn [& s] (apply str (drop 1 (drop-last s))))
      :unquoted-string (comp read-string str)
      :or (xf-skip-middle :or)
      :and (xf-skip-middle :and)
