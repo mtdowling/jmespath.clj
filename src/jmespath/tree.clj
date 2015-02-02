@@ -67,6 +67,20 @@
       :default
         (assoc left 2 [:subexpr right-node right]))))
 
+(defn- xf-escape
+  "Expand JSON escapes."
+  [& nodes]
+  (let [c (apply str (drop 1 nodes))]
+    (cond
+      (= "\"" c) "\""
+      (= "\\" c) "\\"
+      (= "b" c) "\b"
+      (= "f" c) "\f"
+      (= "n" c) "\n"
+      (= "r" c) "\r"
+      (= "t" c) "\t"
+      :default (read-string (str "\\" c)))))
+
 (defn rewrite
   "Transforms the given Instaparse tree to make it nicer to work with"
   [tree]
@@ -74,9 +88,12 @@
     {:ALPHA str
      :DIGIT str
      :DQUOTE str
-     :escaped-char str
+     :HEXDIG str
      :unescaped-char str
-     :escaped-literal str
+     :escaped-literal (fn [& c]
+                        (if (= c '("\\" "`"))
+                          "`"
+                          (first c)))
      :unescaped-literal str
      :escape str
      :char identity
@@ -94,6 +111,7 @@
      :object-subexpr-rhs identity
 
      ; JSON parsing
+     :escaped-char xf-escape
      :true (constantly true)
      :false (constantly false)
      :null (constantly nil)
