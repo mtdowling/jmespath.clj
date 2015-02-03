@@ -35,16 +35,23 @@
          :result (get case "result")
          :error  (get case "error")})))))
 
-(defn do-result [result]
-  (if (instance? clojure.lang.LazySeq result)
-    (doall result)
+(defn convert-result-value [x]
+  (cond
+    (instance? clojure.lang.Ratio x) (float x)
+    (instance? clojure.lang.LazySeq x) (doall x)
+    :default x))
+
+(defn convert-result [result]
+  (clojure.walk/walk
+    convert-result-value
+    convert-result-value
     result))
 
 (deftest passes-compliance
   (doseq [{:keys [file given expr result error]} (get-test-cases)]
     (testing (str file ": " expr)
       (try
-        (let [actual (do-result (jmespath/search expr given))]
+        (let [actual (convert-result (jmespath/search expr given))]
           (is (nil? error)
               (str "Should have failed: " error))
           (is (= result actual)

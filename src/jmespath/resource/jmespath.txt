@@ -27,15 +27,14 @@ eq              = ws "==" ws
 ne              = ws "!=" ws
 expref-token    = "&" ws
 not-token       = "!" ws
-filter-token    = "?" ws
+begin-filter    = "[?" ws
 
 ; Insignificant whitespace
 <ws> = <*(
           %x20 / ; Space
           %x09 / ; Horizontal tab
           %x0A / ; Line feed or New line
-          %x0D   ; Carriage return
-       )>
+          %x0D)> ; Carriage return
 
 ; "&&" binds more tightly than "||"
 ; "||" binds more tightly than "|".
@@ -66,7 +65,7 @@ slice           = begin-array *number name-separator
                                end-array
 wildcard-index   = begin-array "*" end-array
 flatten          = begin-array end-array
-filter           = begin-array filter-token filter-condition end-array
+filter           = begin-filter filter-condition end-array
 filter-condition = not / non-test / terminal / comparison
 
 not             = not-token ( non-test / not )
@@ -92,8 +91,11 @@ current-node    = "@"
 
 number            = *"-" int
 literal           = "`" literal-value "`"
+; literal-value is ambiguous; however, json-value has a higher precedence than
+; non-json-value.
 literal-value     = non-json-value / json-value
-non-json-value    = 1*( unescaped-literal / escaped-literal )
+literal-char      = unescaped-literal / escaped-literal
+non-json-value    = 1*( literal-char )
 unescaped-literal = %x20-5f / %x61-10FFFF ; Any character except "`"
 escaped-literal   = escaped-char / ( escape "`" )
 
@@ -117,12 +119,13 @@ escaped-char      = escape (
 
 ; JSON related grammar (for literal and string values)
 json-value  = false / null / true / object / array
-json-value  =/ json-number / quoted-string
+json-value  =/ json-number / json-string
+json-string = DQUOTE *literal-char DQUOTE
 false       = %x66.61.6c.73.65   ; false
 null        = %x6e.75.6c.6c      ; null
 true        = %x74.72.75.65      ; true
 object      = begin-object [ member *( value-separator member ) ] end-object
-member      = quoted-string name-separator json-value
+member      = json-string name-separator json-value
 array       = begin-array [ json-value *( value-separator json-value ) ] end-array
 json-number = *"-" int *frac *exp
 digit1-9    = %x31-39 ; 1-9

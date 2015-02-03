@@ -1,9 +1,7 @@
 (ns jmespath.interpreter
   "Traverses and interprets JMESPath ASTs. JMESPath AST nodes are visited
   using the visit multimethod."
-  (:require [jmespath.functions]
-            [cheshire.core :as cheshire])
-  (:import [com.fasterxml.jackson.core JsonParseException]))
+  (:require [jmespath.functions]))
 
 (defmulti visit (fn [ast data opts] (first ast)))
 
@@ -20,8 +18,8 @@
   (when (sequential? data)
     (let [pos (get ast 1)]
       (if (< pos 0)
-        (nth data (+ pos (count data)))
-        (nth data pos)))))
+        (get data (+ pos (count data)) nil)
+        (get data pos nil)))))
 
 (defn- subexpr [ast data opts]
   (let [lhs (visit (get ast 1) data opts)]
@@ -43,18 +41,7 @@
        (visit (get ast 2) data opts)))
 
 (defmethod visit :literal [ast data opts]
-  "Visits a literal node and JSON decodes the value if it looks like JSON"
-  (let [v (nth ast 1)]
-    (let [like-json ["{" "[" "\"" "0" "1" "2" "3" "4" "5" "6" "7" "8" "9" "-"]
-          fchar (str (get v 0))]
-      ; If the first character of the string does not look like JSON, then
-      ; just return the literal value
-      (if (not (some #(= fchar %) like-json))
-        v
-        ; Otherwise, attempt to JSON parse the string
-        (try
-          (cheshire/decode (nth ast 1))
-          (catch JsonParseException e (nth ast 1)))))))
+  (nth ast 1))
 
 (defmethod visit :not [ast data opts]
   (not (visit (nth ast 1) data opts)))

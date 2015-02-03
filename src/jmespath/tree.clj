@@ -30,7 +30,7 @@
       (into [:multi-list] nodes))))
 
 (defn- xf-filter [& nodes]
-  [:array-projection [:current-node] (nth nodes 2)])
+  [:array-projection [:current-node] (nth nodes 1)])
 
 (defn- list-with-csv [nodes]
   (->> nodes (drop 1) (drop-last) (take-nth 2) vec))
@@ -97,6 +97,7 @@
      :unescaped-literal str
      :escape str
      :char identity
+     :literal-char identity
      :non-test identity
      :root-expr identity
      :non-terminal identity
@@ -116,8 +117,10 @@
      :false (constantly false)
      :null (constantly nil)
      :digit1-9 str
-     :int (comp read-string str)
+     :int str
      :json-number (comp read-string str)
+     :json-string (fn [& nodes] (apply str (->> nodes (drop 1) (drop-last))))
+     :decimal-point str
      :json-value identity
      :literal-value identity
      :literal (fn [_ v _] [:literal v])
