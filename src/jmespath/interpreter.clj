@@ -1,7 +1,8 @@
 (ns jmespath.interpreter
   "Traverses and interprets JMESPath ASTs. JMESPath AST nodes are visited
   using the visit multimethod."
-  (:require [jmespath.functions]))
+  (:require [jmespath.functions]
+            [clojure.test :refer (function?)]))
 
 (defmulti visit (fn [ast data opts] (first ast)))
 
@@ -32,13 +33,23 @@
 (defmethod visit :pipe [ast data opts]
   (subexpr ast data opts))
 
+(defn truthy? [v]
+  (cond
+    (instance? Boolean v) (true? v)
+    (number? v) (> (Math/abs v) 0)
+    (nil? v) false
+    (function? v) true
+    :default (not (empty? v))))
+
 (defmethod visit :or [ast data opts]
-  (or (visit (get ast 1) data opts)
-      (visit (get ast 2) data opts)))
+  (let [left (visit (nth ast 1) data opts)]
+    (if (truthy? left)
+      left
+      (visit (nth ast 2) data opts))))
 
 (defmethod visit :and [ast data opts]
-  (and (visit (get ast 1) data opts)
-       (visit (get ast 2) data opts)))
+  (and (visit (nth ast 1) data opts)
+       (visit (nth ast 2) data opts)))
 
 (defmethod visit :literal [ast data opts]
   (nth ast 1))
