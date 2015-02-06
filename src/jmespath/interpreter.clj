@@ -92,16 +92,20 @@
              opts)))
 
 (defmethod visit :multi-hash [ast data opts]
-  (apply
-    array-map
-    (flatten
-      (map
-        (fn [node]
-          [(get-in node [1 1]) (visit (nth node 2) data opts)])
-        (rest ast)))))
+  (when (not (nil? data))
+    (apply
+      array-map
+      (flatten
+        (map
+          (fn [node]
+            [(get-in node [1 1])
+             (visit (nth node 2) data opts)])
+          (rest ast))))))
 
 (defmethod visit :multi-list [ast data opts]
-  (map (fn [node] (visit node data opts)) (rest ast)))
+  (when (not (nil? data))
+    (map (fn [node] (visit node data opts))
+         (rest ast))))
 
 (defmethod visit :function [ast data opts]
   (let [args (map (fn [node] (visit node data opts))
