@@ -38,7 +38,7 @@
 (defn convert-result-value [x]
   (cond
     (instance? clojure.lang.Ratio x) (float x)
-    (instance? clojure.lang.LazySeq x) (doall x)
+    (instance? clojure.lang.LazySeq x) (into [] x)
     :default x))
 
 (defn convert-result [result]
