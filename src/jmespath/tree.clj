@@ -6,19 +6,25 @@
             [cheshire.core :refer (parse-string)]))
 
 (def ^:private projection-nodes
+  "This is a list of the nodes used in projections."
   #{:object-projection
     :array-projection
     :flatten-projection
     :filter-projection})
 
-(defn- empty-projection [type]
+(defn- empty-projection
   "Creates an empty projection with current nodes and default metadata"
+  [type]
   (constantly [type [:current-node] [:current-node]]))
 
-(defn- is-projection? [node]
+(defn- is-projection?
+  "Given a node, returns true if the node is a projection node."
+  [node]
   (projection-nodes (get node 0)))
 
-(defn- xf-skip-middle [node]
+(defn- xf-skip-middle
+  "Given a list of nodes, returns a list in which the middle node is removed."
+  [node]
   (fn [lhs _ rhs] [node lhs rhs]))
 
 (defn- xf-multi-list
@@ -29,13 +35,22 @@
       (into [:multi-list] (->> nodes first rest (take-nth 2)))
       (into [:multi-list] nodes))))
 
-(defn- xf-filter [& nodes]
+(defn- xf-filter
+  "Creates a projection for a filter node."
+  [& nodes]
   [:array-projection [:current-node] (nth nodes 1)])
 
-(defn- list-with-csv [nodes]
+(defn- list-with-csv
+  "Given a list of comma separated nodes, remove the commas or separators and
+  return a vector."
+  [nodes]
   (->> nodes (drop 1) (drop-last) (take-nth 2) vec))
 
-(defn- xf-csv [node-name]
+(defn- xf-csv
+  "Returns a function that is used to transform a CSV list of nodes into a
+  named node in which the CSV separator (i.e., ',') is removed from the list
+  and returned as a vec."
+  [node-name]
   (fn [& nodes]
     (into [node-name] (list-with-csv nodes))))
 
@@ -81,6 +96,20 @@
       (= "t" c) "\t"
       :default (read-string (str "\\" c)))))
 
+(defn- xf-wrapped-string
+  "Given a list of tokens in which the first and last tokens are characters
+  wrapping a string (e.g., '), return a string containing the characters
+  inside of the delimiters."
+  [& nodes]
+  (apply str (->> nodes (drop 1) (drop-last))))
+
+(defn- remove-escape
+  [delim]
+  (fn [& chars]
+    (if (= chars '("\\" delim))
+      delim
+      (last chars))))
+
 (defn rewrite
   "Transforms the given Instaparse tree to make it nicer to work with"
   [tree]
@@ -89,15 +118,6 @@
      :DIGIT str
      :DQUOTE str
      :HEXDIG str
-     :unescaped-char str
-     :escaped-literal (fn [& c]
-                        (if (= c '("\\" "`"))
-                          "`"
-                          (first c)))
-     :unescaped-literal str
-     :escape str
-     :char identity
-     :literal-char identity
      :non-test identity
      :root-expr identity
      :non-terminal identity
@@ -111,20 +131,33 @@
      :object-subexpr-lhs identity
      :object-subexpr-rhs identity
 
-     ; JSON parsing
+     ; String parsing
+     :escape str
+     :char identity
+     :unescaped-char str
      :escaped-char xf-escape
+
+     ; Raw string literal parsing
+     :raw-string-escape (remove-escape "'")
+     :raw-string-char identity
+     :raw-string xf-wrapped-string
+
+     ; Literal parsing
+     :literal (fn [_ v _] [:literal v])
+     :literal-char identity
+     :unescaped-literal str
+     :escaped-literal (remove-escape "`")
+
+     ; JSON parsing
      :true (constantly true)
      :false (constantly false)
      :null (constantly nil)
      :digit1-9 str
      :int str
      :json-number (comp read-string str)
-     :json-string (fn [& nodes] (apply str (->> nodes (drop 1) (drop-last))))
+     :json-string xf-wrapped-string
      :decimal-point str
      :json-value identity
-     :literal-value identity
-     :literal (fn [_ v _] [:literal v])
-     :non-json-value str
      :exp str
      :frac str
      :member (fn [name _ value] [name value])
